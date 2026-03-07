@@ -1,0 +1,9 @@
+redis
+psycopg2-binary
+openai
+python-dotenv
+sqlmodel
+tenacity
+httpx
+rich
+pgvector
