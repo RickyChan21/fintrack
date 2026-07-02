@@ -9,38 +9,28 @@ const LLM_MODEL = process.env.LLM_MODEL || "deepseek-chat";
 const prisma = new PrismaClient();
 const openai = new OpenAI({ baseURL: LLM_BASE_URL, apiKey: OPENAI_API_KEY });
 
-// In-memory merchant → category cache
 const categoryCache = new Map<string, { name: string; id: number | null }>();
 
 function parseBACEmail(text: string) {
   const lines = text.split("\n").map((l) => l.trim());
-
   const merchant = extractField(lines, "Comercio");
   const amountRaw = extractField(lines, "Monto");
   const dateRaw = extractField(lines, "Fecha y hora");
   const txType = extractField(lines, "Tipo de compra");
   const status = extractField(lines, "Estado");
   const cardMatch = text.match(/tarjeta\s+(\w+)\s+terminada en\s+(\d+)/);
-
   const amount = amountRaw ? parseFloat(amountRaw.replace(/[^0-9.]/g, "")) : null;
   const currency = amountRaw?.includes("USD") ? "USD" : amountRaw?.includes("PAB") ? "PAB" : "USD";
   const date = dateRaw ? new Date(dateRaw.replace("-", "T").replace(/(\d{4}\/\d{2}\/\d{2})-(\d{2}:\d{2}:\d{2})/, "$1T$2")) : null;
   const bank = "BAC";
   const transactionType = cardMatch ? cardMatch[1] : txType;
-
   return { merchant, amount, currency, date, bank, transactionType, status };
 }
 
 function extractField(lines: string[], label: string): string | null {
   for (const line of lines) {
-    if (line.startsWith(label + ":")) {
-      const val = line.slice(label.length + 1).trim();
-      return val || null;
-    }
-    if (line.startsWith(label + "=")) {
-      const val = line.slice(label.length + 1).trim();
-      return val || null;
-    }
+    if (line.startsWith(label + ":")) return line.slice(label.length + 1).trim() || null;
+    if (line.startsWith(label + "=")) return line.slice(label.length + 1).trim() || null;
   }
   return null;
 }
