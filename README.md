@@ -1,82 +1,64 @@
-# Fintrack AI Worker v2.0
+# Fintrack
 
-A robust, reliable Python worker designed to automate financial tracking. It actively pulls transaction alerts from Gmail, pushes them to a Redis queue, categorizes them using a local LLM (Ollama, LM Studio, etc.), and stores them in PostgreSQL.
+Automated financial tracking that pulls transaction alerts from Gmail, extracts structured data using an LLM, and stores everything in PostgreSQL with a clean web dashboard.
 
-## 🚀 Key Features
+## Features
 
--   **Automated Gmail Ingestion**: Periodically fetches new bank transaction emails via IMAP, automatically tagging processed emails to prevent duplicates.
--   **Reliable Queue Implementation**: Uses the RPOPLPUSH pattern to ensure zero message loss even if the worker crashes mid-task.
--   **Local LLM Integration**: Optimized for local models with custom base URLs and formatted JSON extraction.
--   **Network Awareness**: Automatically detects if your local LLM host (desktop) is offline and enters a low-resource "waiting" state with exponential backoff.
--   **Dead Letter Queue (DLQ)**: Automatically moves consistently failing messages to a separate queue (`fintrack_queue_dead_letter`) for manual inspection.
--   **Duplicate Detection**: Smart detection of duplicate transactions based on Merchant, Amount, and Date to prevent double-counting.
--   **Confidence Scoring**: The LLM provides a confidence score for its extraction.
--   **AI Vector Search**: Automatically generates 384-dimension embeddings for every transaction, enabling semantic search and similarity matching.
--   **Rich UI Logging**: Premium terminal feedback with tables, panels, and status indicators.
--   **Dynamic Category Caching**: Fetches valid categories from your DB and caches them in memory, with auto-refresh every 10 minutes.
+- **Gmail Ingestion**: Periodically fetches bank transaction emails via IMAP, tagging processed emails to prevent duplicates.
+- **LLM Extraction**: Uses an LLM (local or API-based) to parse messy Spanish bank notifications into structured fields (merchant, amount, category, etc.).
+- **Queue Processing**: Redis-backed RPOPLPUSH pattern ensures zero message loss. Dead letter queue for persistently failing messages.
+- **Duplicate Detection**: Skips transactions matching on merchant, amount, and date.
+- **Vector Search**: Generates 384-dimension embeddings for semantic search and similarity matching.
+- **Web Dashboard**: FastAPI + Tailwind dashboard with search, filters, category breakdown, spending timeline, and merchant analysis.
 
-## 🛠 Setup
+## Setup
 
-### 1. Requirements
--   Python 3.14+
--   Redis (Valkey)
--   PostgreSQL
+### Requirements
+- Python 3.14+
+- Redis (Valkey)
+- PostgreSQL with pgvector extension
 
-### 2. Installation
+### Installation
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3. Configuration
-Copy `.env.example` to `.env` and fill in your network details:
+### Configuration
+Copy `.env.example` to `.env` and fill in your details:
 ```bash
 cp .env.example .env
 ```
+
 Key variables:
 - `REDIS_HOST`: IP of your Redis server.
-- `DATABASE_URL`: Your full Postgres connection string.
-- `LLM_BASE_URL`: The API endpoint of your local LLM (e.g., `http://192.168.0.XX:11434/v1`).
-- `LLM_MODEL`: The name of the model to use (e.g., `llama3`).
+- `DATABASE_URL`: Your Postgres connection string (e.g. `postgresql://user:pass@host:5432/fintrack`).
+- `LLM_BASE_URL`: API endpoint for your LLM (e.g. `http://192.168.0.XX:11434/v1` for Ollama, or `https://api.deepseek.com/v1`).
+- `LLM_MODEL`: Model name (e.g. `llama3`, `deepseek-chat`).
 - `GMAIL_USER`: Your Gmail address.
-- `GMAIL_APP_PASSWORD`: A 16-character Google App Password (do not use your real password).
-- `GMAIL_SEARCH_QUERY`: The IMAP search string to find your bank emails (e.g., `"from:notificacion_pa@pa.bac.net subject:Transaccion -label:fintrack_processed"`).
-- `GMAIL_LABEL_DONE`: The Gmail label to apply after processing (e.g., `fintrack_processed`). **You must create this label in your Gmail account manually.**
+- `GMAIL_APP_PASSWORD`: A 16-character Google App Password.
+- `GMAIL_SEARCH_QUERY`: IMAP query to find bank emails.
+- `GMAIL_LABEL_DONE`: Gmail label applied after processing (create it in Gmail first).
 
-### 4. Run the Application
+### Run
 ```bash
 bash start.sh
 ```
-*(This starts both the background Gmail ingester and the foreground Fintrack AI worker).*
 
-## 📦 Docker Support
-The project includes a `Dockerfile` using Python 3.14-slim for production deployment. It automatically uses `start.sh` to run both the email ingester and the LLM worker in a single container.
+This starts:
+- **Gmail Ingester** (background) — polls Gmail for new bank notifications
+- **Web Dashboard** (background) — serves the dashboard on port 8000
+- **Fintrack Worker** (foreground) — processes the queue
 
-## 📊 Data Formats
+Open `http://localhost:8000` to view the dashboard.
 
-### Redis Input
-The worker listens to `fintrack_queue`. Messages should be JSON:
-```json
-{
-  "id": "unique_tx_id_123",
-  "snippet": "Purchase at KFC for USD 9.28 on 2026/03/06"
-}
-```
+## Docker
 
-### Database Schema (Postgres)
-The worker writes to the `transactions` table:
-| Column | Type | Description |
-| :--- | :--- | :--- |
-| `id` | TEXT (PK) | Unique ID from snippet |
-| `merchant` | TEXT | Extracted store name |
-| `amount` | DECIMAL | Transaction amount |
-| `currency` | TEXT | Currency code (default 'USD') |
-| `category` | TEXT | Extracted category name |
-| `transaction_date` | TIMESTAMP | Extracted date |
-| `raw_snippet` | TEXT | Full original text |
-| `confidence_score` | FLOAT | LLM confidence rating (0.0 - 1.0) |
-| `embedding` | VECTOR(384) | AI semantic search vector |
+The included `Dockerfile` builds a container with all three services. Port 8000 is exposed for the dashboard.
 
-## 💀 Error Handling
--   **Retry Strategy**: 1s -> 2s -> 4s ... up to 60s for LLM errors.
--   **Offline Desktop**: If the LLM host is unreachable, the worker sleeps for 5 minutes between checks to save resources.
--   **Failing Tasks**: After 2 consecutive failures for a specific message, it is moved to `fintrack_queue_dead_letter`.
+The workflow builds and publishes images to `ghcr.io` on tagged releases (`v*.*.*`).
+
+## Error Handling
+
+- **LLM Retries**: Exponential backoff (1s → 60s) on connection errors.
+- **Offline Host**: Worker sleeps 5 minutes if LLM host is unreachable.
+- **Dead Letter Queue**: Messages failing twice are moved to `fintrack_queue_dead_letter`.
