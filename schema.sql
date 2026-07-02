@@ -39,3 +39,20 @@ CREATE INDEX IF NOT EXISTS idx_categories_name ON categories(name);
 -- You might use 'vector_cosine_ops' if your similarity search uses cosine.
 CREATE INDEX IF NOT EXISTS idx_transactions_embedding ON transactions 
 USING hnsw (embedding vector_cosine_ops);
+
+-- 6. Initial Seed Data
+-- Standard one-word personal finance categories
+INSERT INTO categories (name) VALUES 
+    ('Groceries'),
+    ('Dining'),
+    ('Transportation'),
+    ('Utilities'),
+    ('Subscriptions'),
+    ('Shopping'),
+    ('Health'),
+    ('Entertainment'),
+    ('Travel'),
+    ('Transfers'),
+    ('Income'),
+    ('Miscellaneous')
+ON CONFLICT (name) DO NOTHING;

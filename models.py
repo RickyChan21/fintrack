@@ -4,6 +4,7 @@ from sqlmodel import Field, SQLModel, create_engine, Session, Column
 from pgvector.sqlalchemy import Vector
 
 class Category(SQLModel, table=True):
+    __tablename__ = "categories"
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(index=True, unique=True)
 
