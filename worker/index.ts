@@ -60,6 +60,8 @@ async function categorizeMerchant(merchant: string, categories: string[]) {
     `Clean up and categorize this merchant: "${merchant}"`,
     `- Remove gateway prefixes (PEDIDOSYA*, PAGUELOFA*, etc.)`,
     `- Remove POS/suffix codes like (PS), (WEB), etc.`,
+    `- Normalize common merchants: "AMAZON MKTPLACE PMTS" → "Amazon", "BB Q CHICKEN" → "BBQ Chicken", etc.`,
+    `- Merge similar names so the same store always has the same clean name`,
     `Respond with JSON: { "clean_merchant": "...", "category": "..." }`,
   ].join("\n");
 
