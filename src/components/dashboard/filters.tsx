@@ -48,11 +48,6 @@ export function Filters({ categories, search, category, dateFrom, dateTo, onSear
     setCalendarOpen(false);
   };
 
-  const formatRange = () => {
-    if (date.from && date.to) return `${format(date.from, "MMM d")} - ${format(date.to, "MMM d")}`;
-    return "Custom";
-  };
-
   return (
     <div className="flex items-center gap-3 flex-wrap">
       <div className="relative flex-1 min-w-[200px]">
@@ -99,7 +94,7 @@ export function Filters({ categories, search, category, dateFrom, dateTo, onSear
               )}
             >
               <CalendarIcon className="h-3 w-3" />
-              <span>{isCustom ? formatRange() : "Custom"}</span>
+              <span>Custom</span>
             </button>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-3" align="end">
