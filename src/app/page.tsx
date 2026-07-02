@@ -1,6 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Filters } from "@/components/dashboard/filters";
 import { KpiCards } from "@/components/dashboard/kpi-cards";
 import { CategoryChart } from "@/components/dashboard/category-chart";
@@ -144,7 +147,58 @@ export default function Dashboard() {
             }))}
           />
         </div>
+
+        <AddCategory onAdded={fetchData} />
       </div>
     </div>
+  );
+}
+
+function AddCategory({ onAdded }: { onAdded: () => void }) {
+  const [name, setName] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function handleAdd() {
+    if (!name.trim()) return;
+    setLoading(true);
+    setError("");
+
+    const res = await fetch("/api/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: name.trim() }),
+    });
+
+    if (!res.ok) {
+      const data = await res.json();
+      setError(data.error || "Failed to add category");
+    } else {
+      setName("");
+      onAdded();
+    }
+    setLoading(false);
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Manage Categories</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="flex gap-2">
+          <Input
+            placeholder="New category name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+          />
+          <Button onClick={handleAdd} disabled={loading || !name.trim()}>
+            Add
+          </Button>
+        </div>
+        {error && <p className="text-sm text-destructive mt-2">{error}</p>}
+      </CardContent>
+    </Card>
   );
 }
