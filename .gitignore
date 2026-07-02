@@ -4,3 +4,4 @@ node_modules/
 prisma/*.db
 token.json
 credentials.json
+.DS_Store
