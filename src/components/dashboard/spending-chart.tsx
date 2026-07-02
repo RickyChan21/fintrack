@@ -1,12 +1,11 @@
 "use client";
 
-import { useState } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
 interface SpendingChartProps {
-  data: { date: string; categories: Record<string, number> };
+  data: Record<string, Record<string, number>>;
   resolution: string;
   onResolutionChange: (r: string) => void;
 }
@@ -20,7 +19,7 @@ export function SpendingChart({ data, resolution, onResolutionChange }: Spending
     ...cats,
   }));
 
-  const allCategories = [...new Set(chartData.flatMap((d: any) => Object.keys(d).filter((k) => k !== "date")))];
+  const allCategories = [...new Set(chartData.flatMap((d) => Object.keys(d).filter((k) => k !== "date")))];
 
   return (
     <Card>
