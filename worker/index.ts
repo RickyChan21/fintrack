@@ -4,95 +4,113 @@ import { createWorker } from "../src/lib/queue";
 
 const LLM_BASE_URL = process.env.LLM_BASE_URL || "http://localhost:11434/v1";
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "not-needed";
-const LLM_MODEL = process.env.LLM_MODEL || "llama3";
+const LLM_MODEL = process.env.LLM_MODEL || "deepseek-chat";
 
 const prisma = new PrismaClient();
 const openai = new OpenAI({ baseURL: LLM_BASE_URL, apiKey: OPENAI_API_KEY });
 
-interface Extraction {
-  category: string;
-  amount: number;
-  currency: string;
-  merchant: string;
-  bank: string | null;
-  transaction_type: string | null;
-  date: string | null;
-  confidence: number;
+// In-memory merchant → category cache
+const categoryCache = new Map<string, { name: string; id: number | null }>();
+
+function parseBACEmail(text: string) {
+  const lines = text.split("\n").map((l) => l.trim());
+
+  const merchant = extractField(lines, "Comercio");
+  const amountRaw = extractField(lines, "Monto");
+  const dateRaw = extractField(lines, "Fecha y hora");
+  const txType = extractField(lines, "Tipo de compra");
+  const status = extractField(lines, "Estado");
+  const cardMatch = text.match(/tarjeta\s+(\w+)\s+terminada en\s+(\d+)/);
+
+  const amount = amountRaw ? parseFloat(amountRaw.replace(/[^0-9.]/g, "")) : null;
+  const currency = amountRaw?.includes("USD") ? "USD" : amountRaw?.includes("PAB") ? "PAB" : "USD";
+  const date = dateRaw ? new Date(dateRaw.replace("-", "T").replace(/(\d{4}\/\d{2}\/\d{2})-(\d{2}:\d{2}:\d{2})/, "$1T$2")) : null;
+  const bank = "BAC";
+  const transactionType = cardMatch ? cardMatch[1] : txType;
+
+  return { merchant, amount, currency, date, bank, transactionType, status };
 }
 
-async function extract(snippet: string, categories: string[]): Promise<Extraction> {
+function extractField(lines: string[], label: string): string | null {
+  for (const line of lines) {
+    if (line.startsWith(label + ":")) {
+      const val = line.slice(label.length + 1).trim();
+      return val || null;
+    }
+    if (line.startsWith(label + "=")) {
+      const val = line.slice(label.length + 1).trim();
+      return val || null;
+    }
+  }
+  return null;
+}
+
+async function categorizeMerchant(merchant: string, categories: string[]) {
+  const cached = categoryCache.get(merchant);
+  if (cached) return cached;
+
   const prompt = [
-    `Analyze this Spanish bank transaction from Panama and extract details in JSON format.`,
-    `Valid Categories: [${categories.join(", ")}]`,
-    `Extract:`,
-    `- category: (Choose the best match from the list above)`,
-    `- amount: (Numeric value)`,
-    `- currency: (Usually USD or PAB)`,
-    `- merchant: (Summarize the store name)`,
-    `- bank: (The bank name)`,
-    `- transaction_type: (How it was paid)`,
-    `- date: (ISO format YYYY-MM-DD if found)`,
-    `- confidence: (Float 0.0 to 1.0)`,
-    `Snippet: "${snippet}"`,
-    `Respond ONLY with valid JSON.`,
+    `From this list of categories: [${categories.join(", ")}]`,
+    `Choose the best category for merchant: "${merchant}"`,
+    `Respond with JSON: { "category": "...", "confidence": 0.0-1.0 }`,
   ].join("\n");
 
   const response = await openai.chat.completions.create({
     model: LLM_MODEL,
     messages: [
-      { role: "system", content: "You are an expert financial assistant specialized in Panamanian commerce and Spanish banking notifications." },
+      { role: "system", content: "You categorize merchants into budget categories." },
       { role: "user", content: prompt },
     ],
     response_format: { type: "json_object" },
   });
 
-  return JSON.parse(response.choices[0].message.content || "{}");
-}
-
-async function processMessage(data: { id: string; snippet: string }) {
-  const { id, snippet } = data;
-
-  if (!id || !snippet) {
-    console.log(`Invalid message, skipping: ${id}`);
-    return;
-  }
-
-  const existing = await prisma.transaction.findUnique({ where: { id } });
-  if (existing) {
-    console.log(`ID ${id} already exists, skipping.`);
-    return;
-  }
-
-  const categories = (await prisma.category.findMany()).map((c) => c.name);
-  const extracted = await extract(snippet, categories);
-
-  let catName = categories.find((c) => c.toLowerCase() === extracted.category.toLowerCase());
+  const result = JSON.parse(response.choices[0].message.content || "{}");
+  let catName = categories.find((c) => c.toLowerCase() === result.category?.toLowerCase());
   if (!catName) {
     catName = categories.find(
-      (c) => extracted.category.toLowerCase().includes(c.toLowerCase()) || c.toLowerCase().includes(extracted.category.toLowerCase())
+      (c) => result.category?.toLowerCase().includes(c.toLowerCase()) || c.toLowerCase().includes(result.category?.toLowerCase() || "")
     );
   }
   if (!catName) catName = "Miscellaneous";
 
   const category = await prisma.category.findUnique({ where: { name: catName } });
-  const txDate = extracted.date ? new Date(extracted.date) : null;
+  const entry = { name: catName, id: category?.id || null };
+  categoryCache.set(merchant, entry);
+  return entry;
+}
+
+async function processMessage(data: { id: string; snippet: string }) {
+  const { id, snippet } = data;
+  if (!id || !snippet) return;
+
+  const existing = await prisma.transaction.findUnique({ where: { id } });
+  if (existing) return;
+
+  const parsed = parseBACEmail(snippet);
+  if (!parsed.merchant || !parsed.amount) {
+    console.log(`Could not parse: ${id}`);
+    return;
+  }
+
+  const categories = (await prisma.category.findMany()).map((c) => c.name);
+  const { name: catName, id: catId } = await categorizeMerchant(parsed.merchant, categories);
 
   await prisma.transaction.create({
     data: {
       id,
-      merchant: extracted.merchant,
-      amount: extracted.amount,
-      currency: extracted.currency,
-      categoryId: category?.id || null,
+      merchant: parsed.merchant,
+      amount: parsed.amount,
+      currency: parsed.currency,
+      categoryId: catId,
       categoryName: catName,
-      bank: extracted.bank,
-      transactionType: extracted.transaction_type,
-      transactionDate: txDate,
-      confidenceScore: extracted.confidence,
+      bank: parsed.bank,
+      transactionType: parsed.transactionType,
+      transactionDate: parsed.date,
+      confidenceScore: 1.0,
     },
   });
 
-  console.log(`Processed: ${id} - ${extracted.merchant} $${extracted.amount}`);
+  console.log(`Processed: ${id} - ${parsed.merchant} $${parsed.amount} [${catName}]`);
 }
 
 async function main() {
