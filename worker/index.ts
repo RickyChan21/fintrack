@@ -1,14 +1,18 @@
 import { PrismaClient } from "@prisma/client";
 import OpenAI from "openai";
 import { google } from "googleapis";
+import Redis from "ioredis";
 import { createWorker } from "../src/lib/queue";
 
 const LLM_BASE_URL = process.env.LLM_BASE_URL || "http://localhost:11434/v1";
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "not-needed";
 const LLM_MODEL = process.env.LLM_MODEL || "deepseek-chat";
+const REDIS_PORT = parseInt(process.env.REDIS_PORT || "16379");
+const REDIS_HOST = process.env.REDIS_HOST || "localhost";
 
 const prisma = new PrismaClient();
 const openai = new OpenAI({ baseURL: LLM_BASE_URL, apiKey: OPENAI_API_KEY });
+const r = new Redis(REDIS_PORT, REDIS_HOST);
 
 function gmailAuth() {
   const client_id = process.env.GMAIL_CLIENT_ID;
@@ -162,7 +166,12 @@ async function processMessage(data: { id: string; snippet: string; gmailId?: str
 
 async function main() {
   console.log("Worker started");
-  const worker = createWorker(processMessage);
+  const worker = createWorker(async (data) => {
+    const paused = await r.get("fintrack:worker:paused");
+    if (paused === "true") return; // silently skip, message stays in queue
+    await processMessage(data);
+  });
+
   worker.on("failed", (job, err) => {
     console.error(`Job ${job?.id} failed: ${err.message}`);
   });

@@ -1,11 +1,16 @@
 import { google } from "googleapis";
 import { createHash } from "crypto";
+import Redis from "ioredis";
 import { simpleParser } from "mailparser";
 import { queue } from "../src/lib/queue";
 
 const GMAIL_SEARCH_QUERY = process.env.GMAIL_SEARCH_QUERY || "from:alerts@chase.com -label:fintrack_processed";
 const GMAIL_LABEL_DONE = process.env.GMAIL_LABEL_DONE || "fintrack_processed";
 const POLL_INTERVAL = parseInt(process.env.GMAIL_POLL_INTERVAL || "300");
+const REDIS_PORT = parseInt(process.env.REDIS_PORT || "16379");
+const REDIS_HOST = process.env.REDIS_HOST || "localhost";
+
+const r = new Redis(REDIS_PORT, REDIS_HOST);
 
 function auth() {
   const client_id = process.env.GMAIL_CLIENT_ID;
@@ -83,8 +88,8 @@ async function processGmail() {
 async function main() {
   console.log("Gmail Ingester started");
   while (true) {
-    await processGmail();
-    console.log(`Sleeping ${POLL_INTERVAL}s...`);
+    const paused = await r.get("fintrack:ingester:paused");
+    if (paused !== "true") await processGmail();
     await new Promise((r) => setTimeout(r, POLL_INTERVAL * 1000));
   }
 }
