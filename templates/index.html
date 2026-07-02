@@ -1,0 +1,422 @@
+{% extends "base.html" %}
+
+{% block heading %}Dashboard{% endblock %}
+
+{% block content %}
+<!-- Search & Filters -->
+<div class="bg-white rounded-xl border border-gray-200 p-4 mb-6">
+    <div class="flex items-center gap-4 flex-wrap">
+        <div class="relative flex-1 min-w-[200px]">
+            <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input type="text" id="search-input" placeholder="Search transactions..." oninput="applyFilters()" class="w-full pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
+        </div>
+        <select id="category-filter" onchange="applyFilters()" class="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent bg-white">
+            <option value="">All Categories</option>
+        </select>
+        <div class="flex gap-1.5">
+            <button onclick="setDateFilter(7)" class="date-filter-btn px-3 py-1.5 text-sm font-medium rounded-lg bg-emerald-100 text-emerald-700" data-days="7">7d</button>
+            <button onclick="setDateFilter(30)" class="date-filter-btn px-3 py-1.5 text-sm font-medium rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200" data-days="30">30d</button>
+            <button onclick="setDateFilter(90)" class="date-filter-btn px-3 py-1.5 text-sm font-medium rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200" data-days="90">90d</button>
+            <button onclick="setDateFilter(null)" class="date-filter-btn px-3 py-1.5 text-sm font-medium rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200" data-days="all">All</button>
+        </div>
+    </div>
+</div>
+
+<!-- KPI Cards -->
+<div class="grid grid-cols-4 gap-6 mb-8">
+    <div class="bg-white rounded-xl border border-gray-200 p-6">
+        <p class="text-sm font-medium text-gray-500 uppercase tracking-wide">Total Spent</p>
+        <p id="kpi-total" class="text-3xl font-bold text-gray-900 mt-1">${{ "{:,.2f}".format(total_spent) }}</p>
+    </div>
+    <div class="bg-white rounded-xl border border-gray-200 p-6">
+        <p class="text-sm font-medium text-gray-500 uppercase tracking-wide">Transactions</p>
+        <p id="kpi-count" class="text-3xl font-bold text-gray-900 mt-1">{{ tx_count }}</p>
+    </div>
+    <div class="bg-white rounded-xl border border-gray-200 p-6">
+        <p class="text-sm font-medium text-gray-500 uppercase tracking-wide">Avg per Transaction</p>
+        <p id="kpi-avg" class="text-3xl font-bold text-gray-900 mt-1">${{ "{:,.2f}".format((total_spent / tx_count) if tx_count else 0) }}</p>
+    </div>
+    <div class="bg-white rounded-xl border border-gray-200 p-6">
+        <p class="text-sm font-medium text-gray-500 uppercase tracking-wide">Top Category</p>
+        <p id="kpi-category" class="text-3xl font-bold text-gray-900 mt-1">{{ top_category }}</p>
+    </div>
+</div>
+
+<!-- Category Donut + Top Merchants -->
+<div class="grid grid-cols-2 gap-6 mb-8">
+    <div class="bg-white rounded-xl border border-gray-200 p-6">
+        <h2 class="text-base font-semibold text-gray-900 mb-4">Spending by Category</h2>
+        <div class="flex items-start gap-6">
+            <div class="w-48 h-48 flex-shrink-0">
+                <canvas id="categoryChart"></canvas>
+            </div>
+            <div id="category-legend" class="flex-1 min-w-0 space-y-1.5 text-sm">
+            </div>
+        </div>
+    </div>
+    <div class="bg-white rounded-xl border border-gray-200 p-6">
+        <h2 class="text-base font-semibold text-gray-900 mb-4">Top Merchants</h2>
+        <div id="merchant-list" class="space-y-2">
+        </div>
+    </div>
+</div>
+
+<!-- Spending Timeline -->
+<div class="bg-white rounded-xl border border-gray-200 p-6 mb-8">
+    <div class="flex items-center justify-between mb-4">
+        <h2 class="text-base font-semibold text-gray-900">Spending Timeline</h2>
+        <div class="flex gap-1.5">
+            <button onclick="setResolution('Daily')" class="resolution-btn px-3 py-1.5 text-sm font-medium rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200" data-res="Daily">Daily</button>
+            <button onclick="setResolution('Weekly')" class="resolution-btn px-3 py-1.5 text-sm font-medium rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200" data-res="Weekly">Weekly</button>
+            <button onclick="setResolution('Monthly')" class="resolution-btn px-3 py-1.5 text-sm font-medium rounded-lg bg-emerald-100 text-emerald-700" data-res="Monthly">Monthly</button>
+            <button onclick="setResolution('Yearly')" class="resolution-btn px-3 py-1.5 text-sm font-medium rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200" data-res="Yearly">Yearly</button>
+        </div>
+    </div>
+    <canvas id="spendingChart" height="280"></canvas>
+</div>
+
+<!-- Monthly Breakdown + Recent Transactions -->
+<div class="grid grid-cols-2 gap-6">
+    <div class="bg-white rounded-xl border border-gray-200 p-6">
+        <h2 class="text-base font-semibold text-gray-900 mb-4">Monthly Breakdown</h2>
+        <div class="overflow-x-auto max-h-80 overflow-y-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="border-b border-gray-100">
+                        <th class="text-left py-2 pr-4 font-medium text-gray-500">Month</th>
+                        <th class="text-right py-2 pr-4 font-medium text-gray-500">Transactions</th>
+                        <th class="text-right py-2 font-medium text-gray-500">Total</th>
+                    </tr>
+                </thead>
+                <tbody id="monthly-breakdown">
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="bg-white rounded-xl border border-gray-200 p-6">
+        <h2 class="text-base font-semibold text-gray-900 mb-4">Recent Transactions</h2>
+        <div class="overflow-x-auto max-h-80 overflow-y-auto">
+            <table class="w-full text-sm" id="transactions-table">
+                <thead>
+                    <tr class="border-b border-gray-100">
+                        <th class="text-left py-2 pr-4 font-medium text-gray-500">Date</th>
+                        <th class="text-left py-2 pr-4 font-medium text-gray-500">Merchant</th>
+                        <th class="text-right py-2 pr-4 font-medium text-gray-500">Category</th>
+                        <th class="text-right py-2 font-medium text-gray-500">Amount</th>
+                    </tr>
+                </thead>
+                <tbody id="transactions-body">
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+const allTransactions = {{ transactions | safe }};
+let filteredTransactions = [...allTransactions];
+let activeDateDays = null;
+let currentResolution = 'Monthly';
+
+// Build category filter options
+const categories = [...new Set(allTransactions.map(t => t.category).filter(Boolean))].sort();
+const filterSelect = document.getElementById('category-filter');
+categories.forEach(cat => {
+    const opt = document.createElement('option');
+    opt.value = cat;
+    opt.textContent = cat;
+    filterSelect.appendChild(opt);
+});
+
+function parseDate(d) {
+    if (!d) return null;
+    const parts = d.split(' ');
+    const months = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+    return new Date(parts[2], months[parts[0]], parseInt(parts[1].replace(',','')));
+}
+
+function inDateRange(d, days) {
+    if (days === null) return true;
+    const date = parseDate(d);
+    if (!date) return true;
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - days);
+    return date >= cutoff;
+}
+
+function applyFilters() {
+    const query = document.getElementById('search-input').value.toLowerCase().trim();
+    const category = document.getElementById('category-filter').value;
+
+    filteredTransactions = allTransactions.filter(t => {
+        if (activeDateDays !== null && !inDateRange(t.date, activeDateDays)) return false;
+        if (category && t.category !== category) return false;
+        if (query) {
+            const searchable = [t.merchant, t.category, t.bank, t.type].filter(Boolean).join(' ').toLowerCase();
+            if (!searchable.includes(query)) return false;
+        }
+        return true;
+    });
+
+    renderAll();
+}
+
+function setDateFilter(days) {
+    activeDateDays = days;
+    document.querySelectorAll('.date-filter-btn').forEach(btn => {
+        const isActive = (btn.dataset.days === 'all' && days === null) || parseInt(btn.dataset.days) === days;
+        btn.className = isActive
+            ? 'date-filter-btn px-3 py-1.5 text-sm font-medium rounded-lg bg-emerald-100 text-emerald-700'
+            : 'date-filter-btn px-3 py-1.5 text-sm font-medium rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200';
+    });
+    applyFilters();
+}
+
+function renderKpi() {
+    const total = filteredTransactions.reduce((s, t) => s + t.amount, 0);
+    const count = filteredTransactions.length;
+    const avg = count ? total / count : 0;
+
+    const catTotals = {};
+    filteredTransactions.forEach(t => {
+        if (t.category) catTotals[t.category] = (catTotals[t.category] || 0) + t.amount;
+    });
+    const topCat = Object.entries(catTotals).sort((a, b) => b[1] - a[1])[0];
+    const topCatName = topCat ? topCat[0] : 'N/A';
+
+    document.getElementById('kpi-total').textContent = '$' + total.toFixed(2);
+    document.getElementById('kpi-count').textContent = count;
+    document.getElementById('kpi-avg').textContent = '$' + avg.toFixed(2);
+    document.getElementById('kpi-category').textContent = topCatName;
+}
+
+function renderCategoryChart() {
+    const catTotals = {};
+    filteredTransactions.forEach(t => {
+        if (t.category) catTotals[t.category] = (catTotals[t.category] || 0) + t.amount;
+    });
+
+    const sorted = Object.entries(catTotals).sort((a, b) => b[1] - a[1]);
+    const labels = sorted.map(s => s[0]);
+    const data = sorted.map(s => s[1]);
+    const total = data.reduce((a, b) => a + b, 0);
+
+    const colors = ['#10b981','#3b82f6','#f59e0b','#ef4444','#8b5cf6','#ec4899','#14b8a6','#f97316','#6366f1','#84cc16'];
+
+    const ctx = document.getElementById('categoryChart').getContext('2d');
+    if (window._catChart) window._catChart.destroy();
+    if (data.length === 0) return;
+
+    window._catChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels,
+            datasets: [{
+                data,
+                backgroundColor: colors.slice(0, labels.length),
+                borderWidth: 0,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => {
+                            const val = ctx.parsed;
+                            const pct = ((val / total) * 100).toFixed(1);
+                            return ` $${val.toFixed(2)} (${pct}%)`;
+                        }
+                    }
+                }
+            },
+            cutout: '65%',
+        }
+    });
+
+    const legend = document.getElementById('category-legend');
+    legend.innerHTML = sorted.map(([cat, amount], i) => {
+        const pct = ((amount / total) * 100).toFixed(1);
+        return `<div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background:${colors[i]}"></span>
+            <span class="text-gray-700 flex-1 truncate">${cat}</span>
+            <span class="font-medium text-gray-900">$${amount.toFixed(2)}</span>
+            <span class="text-gray-400 text-xs w-10 text-right">${pct}%</span>
+        </div>`;
+    }).join('');
+}
+
+function renderMerchants() {
+    const merchTotals = {};
+    filteredTransactions.forEach(t => {
+        merchTotals[t.merchant] = (merchTotals[t.merchant] || 0) + t.amount;
+    });
+
+    const sorted = Object.entries(merchTotals)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10);
+
+    const total = sorted.reduce((s, [, v]) => s + v, 0);
+    const maxVal = sorted.length ? sorted[0][1] : 1;
+
+    const list = document.getElementById('merchant-list');
+    list.innerHTML = sorted.map(([merchant, amount]) => {
+        const pct = ((amount / maxVal) * 100).toFixed(0);
+        const ofTotal = ((amount / total) * 100).toFixed(1);
+        return `<div>
+            <div class="flex items-center justify-between text-sm mb-1">
+                <span class="text-gray-900 font-medium truncate">${merchant}</span>
+                <span class="text-gray-700 font-medium ml-2">$${amount.toFixed(2)}</span>
+            </div>
+            <div class="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                <div class="h-full bg-emerald-500 rounded-full" style="width:${pct}%"></div>
+            </div>
+            <p class="text-xs text-gray-400 mt-0.5">${ofTotal}% of filtered spend</p>
+        </div>`;
+    }).join('');
+}
+
+function renderMonthlyBreakdown() {
+    const monthly = {};
+    filteredTransactions.forEach(tx => {
+        const d = parseDate(tx.date);
+        if (!d) return;
+        const key = d.toISOString().slice(0, 7);
+        if (!monthly[key]) monthly[key] = { total: 0, count: 0 };
+        monthly[key].total += tx.amount;
+        monthly[key].count += 1;
+    });
+
+    const months = Object.keys(monthly).sort().reverse();
+    const tbody = document.getElementById('monthly-breakdown');
+    const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    tbody.innerHTML = months.map(m => {
+        const [y, mo] = m.split('-');
+        const label = `${monthNames[parseInt(mo)-1]} ${y}`;
+        return `<tr class="border-b border-gray-50">
+            <td class="py-2 pr-4 text-gray-700">${label}</td>
+            <td class="py-2 pr-4 text-right text-gray-500">${monthly[m].count}</td>
+            <td class="py-2 text-right font-medium text-gray-900">$${monthly[m].total.toFixed(2)}</td>
+        </tr>`;
+    }).join('');
+}
+
+function renderTransactions() {
+    const tbody = document.getElementById('transactions-body');
+    const display = filteredTransactions.slice(0, 50);
+    const catColors = {
+        'Groceries': 'bg-emerald-100 text-emerald-700',
+        'Dining': 'bg-orange-100 text-orange-700',
+        'Transportation': 'bg-blue-100 text-blue-700',
+        'Utilities': 'bg-purple-100 text-purple-700',
+        'Subscriptions': 'bg-pink-100 text-pink-700',
+        'Shopping': 'bg-indigo-100 text-indigo-700',
+        'Health': 'bg-red-100 text-red-700',
+        'Entertainment': 'bg-yellow-100 text-yellow-700',
+        'Travel': 'bg-cyan-100 text-cyan-700',
+        'Transfers': 'bg-gray-100 text-gray-700',
+        'Income': 'bg-emerald-100 text-emerald-700',
+        'Miscellaneous': 'bg-gray-100 text-gray-600',
+    };
+    tbody.innerHTML = display.map(tx => {
+        const catClass = catColors[tx.category] || 'bg-gray-100 text-gray-600';
+        return `<tr class="border-b border-gray-50 hover:bg-gray-50/50">
+            <td class="py-2 pr-4 text-gray-500 whitespace-nowrap">${tx.date || ''}</td>
+            <td class="py-2 pr-4 font-medium text-gray-900">${tx.merchant}</td>
+            <td class="py-2 pr-4 text-right">${tx.category ? `<span class="inline-block px-2 py-0.5 text-xs font-medium rounded-full ${catClass}">${tx.category}</span>` : ''}</td>
+            <td class="py-2 text-right font-medium text-gray-900 whitespace-nowrap">$${tx.amount.toFixed(2)}</td>
+        </tr>`;
+    }).join('');
+}
+
+function renderChart() {
+    const categories = {};
+    const dateMap = {};
+
+    filteredTransactions.forEach(tx => {
+        const d = parseDate(tx.date);
+        if (!d) return;
+        const key = getResolutionKey(d, currentResolution);
+        const cat = tx.category || 'Uncategorized';
+
+        if (!categories[cat]) categories[cat] = {};
+        if (!categories[cat][key]) categories[cat][key] = 0;
+        categories[cat][key] += tx.amount;
+
+        if (!dateMap[key]) dateMap[key] = true;
+    });
+
+    const dates = Object.keys(dateMap).sort();
+    const colorPalette = ['#10b981','#3b82f6','#f59e0b','#ef4444','#8b5cf6','#ec4899','#14b8a6','#f97316','#6366f1','#84cc16'];
+
+    const catNames = Object.keys(categories);
+    const datasets = catNames.map((cat, i) => ({
+        label: cat,
+        data: dates.map(d => categories[cat][d] || 0),
+        backgroundColor: colorPalette[i % colorPalette.length],
+        borderRadius: 2,
+    }));
+
+    const ctx = document.getElementById('spendingChart').getContext('2d');
+    if (window._spendingChart) window._spendingChart.destroy();
+
+    window._spendingChart = new Chart(ctx, {
+        type: 'bar',
+        data: { labels: dates, datasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: { mode: 'index', intersect: false }
+            },
+            scales: {
+                x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+                y: {
+                    grid: { color: '#f3f4f6' },
+                    ticks: { font: { size: 11 }, callback: v => '$' + v.toFixed(0) }
+                }
+            }
+        }
+    });
+}
+
+function getResolutionKey(date, res) {
+    const d = new Date(date);
+    if (res === 'Daily') return d.toISOString().slice(0, 10);
+    if (res === 'Weekly') {
+        const start = new Date(d);
+        start.setDate(d.getDate() - d.getDay());
+        return start.toISOString().slice(0, 10);
+    }
+    if (res === 'Monthly') return d.toISOString().slice(0, 7);
+    return d.getFullYear().toString();
+}
+
+function setResolution(res) {
+    currentResolution = res;
+    document.querySelectorAll('.resolution-btn').forEach(btn => {
+        const isActive = btn.dataset.res === res;
+        btn.className = isActive
+            ? 'resolution-btn px-3 py-1.5 text-sm font-medium rounded-lg bg-emerald-100 text-emerald-700'
+            : 'resolution-btn px-3 py-1.5 text-sm font-medium rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200';
+    });
+    renderChart();
+}
+
+function renderAll() {
+    renderKpi();
+    renderCategoryChart();
+    renderMerchants();
+    renderMonthlyBreakdown();
+    renderTransactions();
+    renderChart();
+}
+
+setDateFilter(null);
+</script>
+{% endblock %}

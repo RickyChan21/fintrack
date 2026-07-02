@@ -1,6 +1,5 @@
 FROM python:3.14-slim
 
-# Create a non-privileged user
 RUN useradd --create-home fintrack
 USER fintrack
 
@@ -11,10 +10,8 @@ RUN pip install --no-cache-dir --user -r requirements.txt
 
 COPY --chown=fintrack:fintrack . .
 
-# Add local bin to path (for pip installed packages)
 ENV PATH="/home/fintrack/.local/bin:${PATH}"
 
-# Expose Streamlit Dashboard port
-EXPOSE 8501
+EXPOSE 8000
 
 CMD ["bash", "start.sh"]
