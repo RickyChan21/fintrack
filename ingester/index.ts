@@ -1,19 +1,12 @@
-import Redis from "ioredis";
 import Imap from "imap";
 import { simpleParser } from "mailparser";
 import { createHash } from "crypto";
-
-const REDIS_HOST = process.env.REDIS_HOST || "localhost";
-const REDIS_PORT = parseInt(process.env.REDIS_PORT || "16379");
-const REDIS_QUEUE = process.env.REDIS_QUEUE || "fintrack_queue";
+import { queue } from "../src/lib/queue";
 
 const GMAIL_USER = process.env.GMAIL_USER!;
 const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD!;
 const GMAIL_SEARCH_QUERY = process.env.GMAIL_SEARCH_QUERY || "from:alerts@chase.com -label:fintrack_processed";
-const GMAIL_LABEL_DONE = process.env.GMAIL_LABEL_DONE || "fintrack_processed";
 const POLL_INTERVAL = parseInt(process.env.GMAIL_POLL_INTERVAL || "300");
-
-const r = new Redis(REDIS_PORT, REDIS_HOST, { enableOfflineQueue: false });
 
 function connectImap(): Promise<Imap> {
   return new Promise((resolve, reject) => {
@@ -25,9 +18,8 @@ function connectImap(): Promise<Imap> {
       tls: true,
       tlsOptions: { rejectUnauthorized: false },
     });
-
     imap.once("ready", () => resolve(imap));
-    imap.once("error", (err) => reject(err));
+    imap.once("error", reject);
     imap.connect();
   });
 }
@@ -41,7 +33,6 @@ function searchEmails(imap: Imap): Promise<number[]> {
       });
       else search();
     });
-
     function search() {
       imap.search([["X-GM-RAW", GMAIL_SEARCH_QUERY]], (err, results) => {
         if (err) reject(err);
@@ -82,15 +73,13 @@ async function processGmail() {
         const raw = await fetchEmail(imap, seqno);
         const parsed = await simpleParser(raw);
         const text = parsed.text || "";
-
         if (!text.trim()) continue;
 
         const msgId = parsed.messageId || `seq-${seqno}`;
         const txId = createHash("md5").update(msgId).digest("hex");
 
-        const payload = JSON.stringify({ id: txId, snippet: text });
-        await r.lpush(REDIS_QUEUE, payload);
-        console.log(`Pushed: ${txId}`);
+        await queue.add("process", { id: txId, snippet: text }, { jobId: txId });
+        console.log(`Queued: ${txId}`);
       }
     } else {
       console.log("No new emails");
