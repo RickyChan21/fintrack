@@ -25,7 +25,7 @@ RUN npm install
 COPY . .
 RUN npx prisma generate && npm run build
 
-RUN mkdir -p /var/log/fintrack && chown -R fintrack:fintrack /home/fintrack /var/log/fintrack
+RUN mkdir -p /var/log/fintrack /data && chown -R fintrack:fintrack /home/fintrack /var/log/fintrack
 
 EXPOSE 3000
 

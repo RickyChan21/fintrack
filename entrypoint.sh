@@ -1,16 +1,17 @@
 #!/bin/bash
 
-# Load .env file if mounted
-ENV_FILE="/home/fintrack/app/.env"
+export PATH="/usr/lib/postgresql/15/bin:$PATH"
+DATA_DIR="${DATA_DIR:-/data}"
+PGDATA="$DATA_DIR/pgdata"
+APP_DIR="/home/fintrack/app"
+
+# Load .env file from data directory if mounted
+ENV_FILE="$DATA_DIR/.env"
 if [ -f "$ENV_FILE" ]; then
     set -a
     source "$ENV_FILE"
     set +a
 fi
-
-export PATH="/usr/lib/postgresql/15/bin:$PATH"
-PGDATA="/var/lib/postgresql/data"
-APP_DIR="/home/fintrack/app"
 
 if [ -z "$DATABASE_URL" ]; then
     export POSTGRES_USER="${POSTGRES_USER:-fintrack}"
