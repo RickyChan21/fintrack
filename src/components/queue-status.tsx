@@ -56,10 +56,14 @@ export function QueueStatus() {
         {stats.waiting === 0 && stats.failed === 0 && <span className="text-emerald-500">Idle</span>}
       </div>
       <div className="flex items-center gap-3 text-xs">
-        <button onClick={() => toggle("worker")} className={`px-2 py-0.5 rounded text-xs font-medium ${status.worker ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"}`}>
-          Worker {status.worker ? "ON" : "OFF"}
-        </button>
-        <button onClick={() => toggle("ingester")} className={`px-2 py-0.5 rounded text-xs font-medium ${status.ingester ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"}`}>
+        <button
+          onClick={async () => {
+            const next = !status.ingester;
+            await fetch("/api/status", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ingester: next }) });
+            setStatus((s) => ({ ...s, ingester: next }));
+          }}
+          className={`px-2 py-0.5 rounded text-xs font-medium ${status.ingester ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"}`}
+        >
           Ingester {status.ingester ? "ON" : "OFF"}
         </button>
       </div>
