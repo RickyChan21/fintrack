@@ -44,7 +44,16 @@ export async function GET(request: Request) {
 export async function PUT(request: Request) {
   if (!prisma) return NextResponse.json({ error: "No database" }, { status: 500 });
 
-  const { id, merchant } = await request.json();
+  const { id, merchant, renameAll, oldMerchant } = await request.json();
+
+  if (renameAll && oldMerchant && merchant) {
+    await prisma.transaction.updateMany({
+      where: { merchant: oldMerchant },
+      data: { merchant },
+    });
+    return NextResponse.json({ ok: true, count: "all" });
+  }
+
   if (!id || !merchant) return NextResponse.json({ error: "ID and merchant required" }, { status: 400 });
 
   await prisma.transaction.update({ where: { id }, data: { merchant } });

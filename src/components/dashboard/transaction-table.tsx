@@ -52,6 +52,17 @@ export function TransactionTable({ transactions, onUpdate }: TransactionTablePro
     onUpdate?.();
   }
 
+  async function renameAll(oldMerchant: string, newMerchant: string) {
+    if (!confirm(`Rename all "${oldMerchant}" → "${newMerchant}"?`)) return;
+    await fetch("/api/transactions", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ renameAll: true, oldMerchant, merchant: newMerchant }),
+    });
+    setEditingId(null);
+    onUpdate?.();
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -82,10 +93,11 @@ export function TransactionTable({ transactions, onUpdate }: TransactionTablePro
                           value={editValue}
                           onChange={(e) => setEditValue(e.target.value)}
                           onKeyDown={(e) => e.key === "Enter" && saveEdit(tx.id)}
-                          className="h-7 text-xs"
+                          className="h-7 text-xs w-32"
                           autoFocus
                         />
                         <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => saveEdit(tx.id)}>✓</Button>
+                        <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => { saveEdit(tx.id); renameAll(tx.merchant, editValue.trim()); }}>All</Button>
                         <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setEditingId(null)}>✕</Button>
                       </div>
                     ) : (
