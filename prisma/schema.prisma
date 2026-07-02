@@ -1,0 +1,39 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [vector]
+}
+
+model Category {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+
+  transactions Transaction[]
+}
+
+model Transaction {
+  id              String   @id
+  merchant        String
+  amount          Float
+  currency        String   @default("USD")
+  categoryId      Int?
+  category        Category? @relation(fields: [categoryId], references: [id])
+  categoryName    String?  @map("category")
+  bank            String?
+  transactionType String?  @map("transaction_type")
+  transactionDate DateTime? @map("transaction_date")
+  processedAt     DateTime @default(now()) @map("processed_at")
+  rawSnippet      String?  @map("raw_snippet")
+  confidenceScore Float?   @map("confidence_score")
+  embedding       Unsupported("vector(384)")?
+
+  @@map("transactions")
+  @@index([merchant])
+  @@index([transactionDate])
+  @@index([categoryId])
+}

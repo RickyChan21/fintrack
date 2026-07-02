@@ -1,10 +1,16 @@
 #!/bin/bash
 
+echo "Pushing database schema..."
+npx prisma db push --accept-data-loss
+
+echo "Seeding categories..."
+npx tsx src/lib/seed.ts
+
 echo "Starting Gmail Ingester in background..."
-python gmail_ingester.py &
+npx tsx src/ingester/index.ts &
 
-echo "Starting Fintrack Dashboard on port 8000..."
-uvicorn main:app --host 0.0.0.0 --port 8000 &
+echo "Starting Worker in background..."
+npx tsx src/worker/index.ts &
 
-echo "Starting Fintrack Worker..."
-python worker.py
+echo "Starting Next.js dashboard on port 3000..."
+npx next start --port 3000

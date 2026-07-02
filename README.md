@@ -1,64 +1,54 @@
 # Fintrack
 
-Automated financial tracking that pulls transaction alerts from Gmail, extracts structured data using an LLM, and stores everything in PostgreSQL with a clean web dashboard.
+Automated financial tracking that extracts structured transaction data from bank notification emails and provides a clean web dashboard.
 
-## Features
+## Architecture
 
-- **Gmail Ingestion**: Periodically fetches bank transaction emails via IMAP, tagging processed emails to prevent duplicates.
-- **LLM Extraction**: Uses an LLM (local or API-based) to parse messy Spanish bank notifications into structured fields (merchant, amount, category, etc.).
-- **Queue Processing**: Redis-backed RPOPLPUSH pattern ensures zero message loss. Dead letter queue for persistently failing messages.
-- **Duplicate Detection**: Skips transactions matching on merchant, amount, and date.
-- **Vector Search**: Generates 384-dimension embeddings for semantic search and similarity matching.
-- **Web Dashboard**: FastAPI + Tailwind dashboard with search, filters, category breakdown, spending timeline, and merchant analysis.
+- **Next.js** — Web dashboard + API routes
+- **Prisma** — PostgreSQL ORM with pgvector
+- **Redis** — Queue for processing jobs
+- **OpenAI-compatible API** — LLM extraction (DeepSeek, Ollama, etc.)
+
+## Services
+
+| Service | Description | Port |
+|---------|-------------|------|
+| Dashboard | Next.js web UI | 3000 |
+| Worker | Redis queue processor with LLM extraction | — |
+| Ingester | Gmail IMAP poller | — |
 
 ## Setup
 
 ### Requirements
-- Python 3.14+
-- Redis (Valkey)
+- Node.js 22+
+- Redis
 - PostgreSQL with pgvector extension
 
-### Installation
-```bash
-pip install -r requirements.txt
-```
-
 ### Configuration
-Copy `.env.example` to `.env` and fill in your details:
+Copy `.env.example` to `.env` and fill in:
 ```bash
 cp .env.example .env
 ```
 
-Key variables:
-- `REDIS_HOST`: IP of your Redis server.
-- `DATABASE_URL`: Your Postgres connection string (e.g. `postgresql://user:pass@host:5432/fintrack`).
-- `LLM_BASE_URL`: API endpoint for your LLM (e.g. `http://192.168.0.XX:11434/v1` for Ollama, or `https://api.deepseek.com/v1`).
-- `LLM_MODEL`: Model name (e.g. `llama3`, `deepseek-chat`).
-- `GMAIL_USER`: Your Gmail address.
-- `GMAIL_APP_PASSWORD`: A 16-character Google App Password.
-- `GMAIL_SEARCH_QUERY`: IMAP query to find bank emails.
-- `GMAIL_LABEL_DONE`: Gmail label applied after processing (create it in Gmail first).
-
-### Run
+### Install & Run
 ```bash
-bash start.sh
+npm install
+npx prisma db push
+npm run dev          # Dashboard (http://localhost:3000)
+npm run worker       # Queue processor
+npm run ingester     # Gmail poller
 ```
 
-This starts:
-- **Gmail Ingester** (background) — polls Gmail for new bank notifications
-- **Web Dashboard** (background) — serves the dashboard on port 8000
-- **Fintrack Worker** (foreground) — processes the queue
+### Docker
+```bash
+docker build -t fintrack .
+docker run -p 3000:3000 --env-file .env fintrack
+```
 
-Open `http://localhost:8000` to view the dashboard.
+## Release
 
-## Docker
-
-The included `Dockerfile` builds a container with all three services. Port 8000 is exposed for the dashboard.
-
-The workflow builds and publishes images to `ghcr.io` on tagged releases (`v*.*.*`).
-
-## Error Handling
-
-- **LLM Retries**: Exponential backoff (1s → 60s) on connection errors.
-- **Offline Host**: Worker sleeps 5 minutes if LLM host is unreachable.
-- **Dead Letter Queue**: Messages failing twice are moved to `fintrack_queue_dead_letter`.
+Tag with semver to trigger a Docker image build via GitHub Actions:
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
