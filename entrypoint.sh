@@ -1,5 +1,13 @@
 #!/bin/bash
 
+# Load .env file if mounted
+ENV_FILE="/home/fintrack/app/.env"
+if [ -f "$ENV_FILE" ]; then
+    set -a
+    source "$ENV_FILE"
+    set +a
+fi
+
 export PATH="/usr/lib/postgresql/15/bin:$PATH"
 PGDATA="/var/lib/postgresql/data"
 APP_DIR="/home/fintrack/app"
