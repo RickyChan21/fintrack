@@ -1,23 +1,27 @@
 "use client";
 
+"use client";
+
 import { useState, useEffect, useCallback } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Filters } from "@/components/dashboard/filters";
 import { KpiCards } from "@/components/dashboard/kpi-cards";
 import { CategoryChart } from "@/components/dashboard/category-chart";
 import { MerchantList } from "@/components/dashboard/merchant-list";
 import { SpendingChart } from "@/components/dashboard/spending-chart";
 import { MonthlyBreakdown } from "@/components/dashboard/monthly-breakdown";
-import { TransactionTable } from "@/components/dashboard/transaction-table";
+
+interface CategoryInfo {
+  id: number;
+  name: string;
+  color: string;
+}
 
 export default function Dashboard() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
   const [days, setDays] = useState<number | null>(null);
   const [resolution, setResolution] = useState("Monthly");
-  const [categories, setCategories] = useState<string[]>([]);
+  const [categories, setCategories] = useState<CategoryInfo[]>([]);
   const [stats, setStats] = useState<any>(null);
   const [transactions, setTransactions] = useState<any[]>([]);
 
@@ -48,8 +52,9 @@ export default function Dashboard() {
   transactions.forEach((t: any) => {
     if (t.categoryName) catTotals[t.categoryName] = (catTotals[t.categoryName] || 0) + t.amount;
   });
+  const catColorMap = Object.fromEntries(categories.map((c) => [c.name, c.color]));
   const categoryData = Object.entries(catTotals)
-    .map(([name, value]) => ({ name, value: Math.round(value * 100) / 100 }))
+    .map(([name, value]) => ({ name, value: Math.round(value * 100) / 100, color: catColorMap[name] || "#6b7280" }))
     .sort((a, b) => b.value - a.value);
 
   const merchTotals: Record<string, number> = {};
@@ -101,7 +106,7 @@ export default function Dashboard() {
   return (
     <div className="px-8 py-6 space-y-6">
       <Filters
-        categories={categories}
+        categories={categories.map((c) => c.name)}
         search={search}
         category={category}
         days={days}
@@ -124,72 +129,7 @@ export default function Dashboard() {
         resolution={resolution}
         onResolutionChange={setResolution}
       />
-      <div className="grid grid-cols-2 gap-6">
-        <MonthlyBreakdown data={monthlyData} />
-        <TransactionTable
-          transactions={transactions.map((t: any) => ({
-            id: t.id,
-            merchant: t.merchant,
-            amount: t.amount,
-            category: t.categoryName,
-            bank: t.bank,
-            type: t.transactionType,
-            confidence: t.confidenceScore,
-            date: t.transactionDate ? new Date(t.transactionDate).toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" }) : null,
-          }))}
-        />
-      </div>
-
-      <AddCategory onAdded={fetchData} />
+      <MonthlyBreakdown data={monthlyData} />
     </div>
-  );
-}
-
-function AddCategory({ onAdded }: { onAdded: () => void }) {
-  const [name, setName] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  async function handleAdd() {
-    if (!name.trim()) return;
-    setLoading(true);
-    setError("");
-
-    const res = await fetch("/api/categories", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: name.trim() }),
-    });
-
-    if (!res.ok) {
-      const data = await res.json();
-      setError(data.error || "Failed to add category");
-    } else {
-      setName("");
-      onAdded();
-    }
-    setLoading(false);
-  }
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Manage Categories</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="flex gap-2">
-          <Input
-            placeholder="New category name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-          />
-          <Button onClick={handleAdd} disabled={loading || !name.trim()}>
-            Add
-          </Button>
-        </div>
-        {error && <p className="text-sm text-destructive mt-2">{error}</p>}
-      </CardContent>
-    </Card>
   );
 }

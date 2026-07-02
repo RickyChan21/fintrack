@@ -23,7 +23,8 @@ export default function TransactionsPage() {
     ]);
 
     setTransactions(await txRes.json());
-    setCategories(await catRes.json());
+    const cats = await catRes.json();
+    setCategories(Array.isArray(cats) ? cats.map((c: any) => typeof c === "string" ? c : c.name) : []);
   }, [search, category, days]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
