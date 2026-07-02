@@ -32,6 +32,7 @@ const NORMALIZE: Record<string, string> = {
   "do it center": "Do It Center",
   "nuevo oriente": "Nuevo Oriente",
   "ovnicom": "Ovnicon",
+  "alipay": "AliExpress",
 };
 
 function normalizeMerchant(raw: string): string {
