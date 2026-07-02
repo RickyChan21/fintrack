@@ -86,11 +86,17 @@ async function processMessage(messageJson: string) {
     const categories = (await prisma.category.findMany()).map((c) => c.name);
     const extracted = await extract(snippet, categories);
 
-    const catMatch = categories.find((c) => c.toLowerCase() === extracted.category.toLowerCase());
-    const category = catMatch ? await prisma.category.findUnique({ where: { name: catMatch } }) : null;
+    let catName = categories.find((c) => c.toLowerCase() === extracted.category.toLowerCase());
+    if (!catName) {
+      catName = categories.find((c) => extracted.category.toLowerCase().includes(c.toLowerCase()) || c.toLowerCase().includes(extracted.category.toLowerCase()));
+    }
+    if (!catName) {
+      catName = "Miscellaneous";
+    }
+
+    const category = await prisma.category.findUnique({ where: { name: catName } });
 
     const txDate = extracted.date ? new Date(extracted.date) : null;
-    const emb = await getEmbedding(snippet);
 
     await prisma.transaction.create({
       data: {
@@ -99,7 +105,7 @@ async function processMessage(messageJson: string) {
         amount: extracted.amount,
         currency: extracted.currency,
         categoryId: category?.id || null,
-        categoryName: extracted.category,
+        categoryName: catName,
         bank: extracted.bank,
         transactionType: extracted.transaction_type,
         transactionDate: txDate,
