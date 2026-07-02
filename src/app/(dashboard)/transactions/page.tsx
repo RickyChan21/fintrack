@@ -7,7 +7,8 @@ import { TransactionTable } from "@/components/dashboard/transaction-table";
 export default function TransactionsPage() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
-  const [days, setDays] = useState<number | null>(null);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [categories, setCategories] = useState<string[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
 
@@ -15,7 +16,8 @@ export default function TransactionsPage() {
     const params = new URLSearchParams();
     if (search) params.set("q", search);
     if (category && category !== "all") params.set("category", category);
-    if (days) params.set("days", days.toString());
+    if (dateFrom) params.set("dateFrom", dateFrom);
+    if (dateTo) params.set("dateTo", dateTo);
 
     const [txRes, catRes] = await Promise.all([
       fetch(`/api/transactions?${params}&take=200`),
@@ -25,7 +27,7 @@ export default function TransactionsPage() {
     setTransactions(await txRes.json());
     const cats = await catRes.json();
     setCategories(Array.isArray(cats) ? cats.map((c: any) => typeof c === "string" ? c : c.name) : []);
-  }, [search, category, days]);
+  }, [search, category, dateFrom, dateTo]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -39,10 +41,11 @@ export default function TransactionsPage() {
         categories={categories}
         search={search}
         category={category}
-        days={days}
+        dateFrom={dateFrom}
+        dateTo={dateTo}
         onSearchChange={setSearch}
         onCategoryChange={setCategory}
-        onDaysChange={setDays}
+        onDateChange={(from, to) => { setDateFrom(from); setDateTo(to); }}
       />
       <TransactionTable
         transactions={transactions.map((t: any) => ({

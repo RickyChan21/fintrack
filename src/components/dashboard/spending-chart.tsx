@@ -3,7 +3,8 @@
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { useTheme } from "next-themes";
+import { useEffect, useState } from "react";
 
 interface SpendingChartProps {
   data: Record<string, Record<string, number>>;
@@ -12,15 +13,23 @@ interface SpendingChartProps {
 }
 
 export function SpendingChart({ data, resolution, onResolutionChange }: SpendingChartProps) {
+  const { theme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  const isDark = mounted && (theme === "dark" || (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches));
+
+  const borderColor = isDark ? "#333" : "#e5e7eb";
+  const textColor = isDark ? "#999" : "#6b7280";
+  const tooltipBg = isDark ? "#1a1a1a" : "#fff";
+  const tooltipBorder = isDark ? "#333" : "#e5e7eb";
+
   const resolutions = ["Daily", "Weekly", "Monthly", "Yearly"];
-  const colors = ["#10b981", "#3b82f6", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316", "#6366f1", "#84cc16"];
 
-  const chartData = Object.entries(data).map(([date, cats]) => ({
-    date,
-    ...cats,
-  }));
-
-  const allCategories = [...new Set(chartData.flatMap((d) => Object.keys(d).filter((k) => k !== "date")))];
+  const chartData = Object.entries(data).map(([date, cats]) => {
+    const total = Object.values(cats).reduce((s, v) => s + v, 0);
+    return { date, total: Math.round(total * 100) / 100 };
+  }).sort((a, b) => a.date.localeCompare(b.date));
 
   return (
     <Card>
@@ -45,22 +54,21 @@ export function SpendingChart({ data, resolution, onResolutionChange }: Spending
         <div className="h-[280px]">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-              <XAxis dataKey="date" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
-              <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={(v: number) => `$${v}`} />
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={borderColor} />
+              <XAxis dataKey="date" tick={{ fontSize: 11, fill: textColor }} tickLine={false} axisLine={{ stroke: borderColor }} />
+              <YAxis tick={{ fontSize: 11, fill: textColor }} tickLine={false} axisLine={{ stroke: borderColor }} tickFormatter={(v: number) => `$${v}`} />
               <Tooltip
                 contentStyle={{
-                  background: "hsl(var(--popover))",
-                  border: "1px solid hsl(var(--border))",
+                  background: tooltipBg,
+                  border: `1px solid ${tooltipBorder}`,
                   borderRadius: "var(--radius)",
                   boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
                   fontSize: "13px",
+                  color: isDark ? "#fff" : "#111",
                 }}
-                labelStyle={{ fontWeight: 600, marginBottom: 4, color: "hsl(var(--foreground))" }}
+                labelStyle={{ fontWeight: 600, marginBottom: 4 }}
               />
-              {allCategories.map((cat, i) => (
-                <Bar key={cat} dataKey={cat} stackId="a" fill={colors[i % colors.length]} radius={[2, 2, 0, 0]} />
-              ))}
+              <Bar dataKey="total" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={48} background={false} />
             </BarChart>
           </ResponsiveContainer>
         </div>

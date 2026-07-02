@@ -8,19 +8,29 @@ interface FiltersProps {
   categories: string[];
   search: string;
   category: string;
-  days: number | null;
+  dateFrom: string;
+  dateTo: string;
   onSearchChange: (v: string) => void;
   onCategoryChange: (v: string) => void;
-  onDaysChange: (v: number | null) => void;
+  onDateChange: (from: string, to: string) => void;
 }
 
-export function Filters({ categories, search, category, days, onSearchChange, onCategoryChange, onDaysChange }: FiltersProps) {
-  const dateOptions = [
-    { label: "7d", value: 7 },
-    { label: "30d", value: 30 },
-    { label: "90d", value: 90 },
-    { label: "All", value: null },
-  ] as const;
+function today() { return new Date().toISOString().slice(0, 10); }
+function daysAgo(n: number) { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); }
+function monthStart() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`; }
+
+export function Filters({ categories, search, category, dateFrom, dateTo, onSearchChange, onCategoryChange, onDateChange }: FiltersProps) {
+  const quickOptions = [
+    { label: "7d", from: daysAgo(7), to: today() },
+    { label: "30d", from: daysAgo(30), to: today() },
+    { label: "This Month", from: monthStart(), to: today() },
+    { label: "All", from: "", to: "" },
+  ];
+
+  const isActive = (opt: typeof quickOptions[number]) => {
+    if (opt.from === "" && opt.to === "") return dateFrom === "" && dateTo === "";
+    return dateFrom === opt.from && dateTo === opt.to;
+  };
 
   return (
     <div className="flex items-center gap-4 flex-wrap">
@@ -42,16 +52,31 @@ export function Filters({ categories, search, category, days, onSearchChange, on
         </SelectContent>
       </Select>
       <div className="flex gap-1.5">
-        {dateOptions.map((opt) => (
+        {quickOptions.map((opt) => (
           <Button
             key={opt.label}
-            variant={days === opt.value ? "default" : "outline"}
+            variant={isActive(opt) ? "default" : "outline"}
             size="sm"
-            onClick={() => onDaysChange(opt.value)}
+            onClick={() => onDateChange(opt.from, opt.to)}
           >
             {opt.label}
           </Button>
         ))}
+      </div>
+      <div className="flex items-center gap-1.5">
+        <Input
+          type="date"
+          value={dateFrom}
+          onChange={(e) => onDateChange(e.target.value, dateTo)}
+          className="w-[140px] h-8 text-xs"
+        />
+        <span className="text-xs text-muted-foreground">—</span>
+        <Input
+          type="date"
+          value={dateTo}
+          onChange={(e) => onDateChange(dateFrom, e.target.value)}
+          className="w-[140px] h-8 text-xs"
+        />
       </div>
     </div>
   );

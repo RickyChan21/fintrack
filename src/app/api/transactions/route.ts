@@ -7,7 +7,8 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const query = searchParams.get("q")?.toLowerCase();
   const category = searchParams.get("category");
-  const days = searchParams.get("days") ? parseInt(searchParams.get("days")!) : null;
+  const dateFrom = searchParams.get("dateFrom");
+  const dateTo = searchParams.get("dateTo");
   const take = searchParams.get("take") ? parseInt(searchParams.get("take")!) : 100;
 
   const where: any = {};
@@ -16,10 +17,10 @@ export async function GET(request: Request) {
     where.categoryName = category;
   }
 
-  if (days) {
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - days);
-    where.transactionDate = { gte: cutoff };
+  if (dateFrom || dateTo) {
+    where.transactionDate = {};
+    if (dateFrom) where.transactionDate.gte = new Date(dateFrom);
+    if (dateTo) where.transactionDate.lte = new Date(dateTo + "T23:59:59");
   }
 
   if (query) {

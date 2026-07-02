@@ -2,12 +2,19 @@
 
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useTheme } from "next-themes";
+import { useEffect, useState } from "react";
 
 interface CategoryChartProps {
   data: { name: string; value: number; color: string }[];
 }
 
 export function CategoryChart({ data }: CategoryChartProps) {
+  const { theme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const isDark = mounted && (theme === "dark" || (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches));
+
   const total = data.reduce((s, d) => s + d.value, 0);
 
   return (
@@ -27,13 +34,14 @@ export function CategoryChart({ data }: CategoryChartProps) {
                 <Tooltip
                   formatter={(value) => value != null ? `$${Number(value).toFixed(2)}` : ""}
                   contentStyle={{
-                    background: "hsl(var(--popover))",
-                    border: "1px solid hsl(var(--border))",
+                    background: isDark ? "#1a1a1a" : "#fff",
+                    border: isDark ? "1px solid #333" : "1px solid #e5e7eb",
                     borderRadius: "var(--radius)",
                     boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
                     fontSize: "13px",
+                    color: isDark ? "#fff" : "#111",
                   }}
-                  labelStyle={{ fontWeight: 600, marginBottom: 4, color: "hsl(var(--foreground))" }}
+                  labelStyle={{ fontWeight: 600, marginBottom: 4 }}
                 />
               </PieChart>
             </ResponsiveContainer>

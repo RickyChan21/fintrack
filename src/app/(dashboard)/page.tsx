@@ -19,7 +19,8 @@ interface CategoryInfo {
 export default function Dashboard() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
-  const [days, setDays] = useState<number | null>(null);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [resolution, setResolution] = useState("Monthly");
   const [categories, setCategories] = useState<CategoryInfo[]>([]);
   const [stats, setStats] = useState<any>(null);
@@ -29,7 +30,8 @@ export default function Dashboard() {
     const params = new URLSearchParams();
     if (search) params.set("q", search);
     if (category && category !== "all") params.set("category", category);
-    if (days) params.set("days", days.toString());
+    if (dateFrom) params.set("dateFrom", dateFrom);
+    if (dateTo) params.set("dateTo", dateTo);
 
     const [txRes, statsRes, catRes] = await Promise.all([
       fetch(`/api/transactions?${params}`),
@@ -40,7 +42,7 @@ export default function Dashboard() {
     setTransactions(await txRes.json());
     setStats(await statsRes.json());
     setCategories(await catRes.json());
-  }, [search, category, days]);
+  }, [search, category, dateFrom, dateTo]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -109,10 +111,11 @@ export default function Dashboard() {
         categories={categories.map((c) => c.name)}
         search={search}
         category={category}
-        days={days}
+        dateFrom={dateFrom}
+        dateTo={dateTo}
         onSearchChange={setSearch}
         onCategoryChange={setCategory}
-        onDaysChange={setDays}
+        onDateChange={(from, to) => { setDateFrom(from); setDateTo(to); }}
       />
       <KpiCards
         totalSpent={totalSpent}
