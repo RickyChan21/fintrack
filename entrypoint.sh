@@ -51,7 +51,7 @@ echo "DATABASE_URL=$DATABASE_URL"
 npx prisma db push --accept-data-loss 2>&1
 npx tsx src/lib/seed.ts
 
-nohup npx tsx worker/index.ts > /var/log/fintrack/worker.log 2>&1 &
-nohup npx tsx ingester/index.ts > /var/log/fintrack/ingester.log 2>&1 &
+npx tsx worker/index.ts &
+npx tsx ingester/index.ts &
 
 exec npx next start --port 3000

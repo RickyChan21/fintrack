@@ -1,11 +1,6 @@
 import { google } from "googleapis";
-import { readFileSync, existsSync } from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
 import { createHash } from "crypto";
 import { queue } from "../src/lib/queue";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const GMAIL_SEARCH_QUERY = process.env.GMAIL_SEARCH_QUERY || "from:alerts@chase.com -label:fintrack_processed";
 const GMAIL_LABEL_DONE = process.env.GMAIL_LABEL_DONE || "fintrack_processed";
@@ -16,22 +11,12 @@ function auth() {
   const client_secret = process.env.GMAIL_CLIENT_SECRET;
   const refresh_token = process.env.GMAIL_REFRESH_TOKEN;
 
-  if (client_id && client_secret && refresh_token) {
-    const oauth2Client = new google.auth.OAuth2(client_id, client_secret, "urn:ietf:wg:oauth:2.0:oob");
-    oauth2Client.setCredentials({ refresh_token });
-    return google.gmail({ version: "v1", auth: oauth2Client });
+  if (!client_id || !client_secret || !refresh_token) {
+    throw new Error("GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, and GMAIL_REFRESH_TOKEN must be set");
   }
 
-  // Fallback to files for local dev
-  const tokenPath = process.env.GMAIL_TOKEN_PATH || path.join(__dirname, "..", "token.json");
-  const credsPath = process.env.GMAIL_CREDENTIALS_PATH || path.join(__dirname, "..", "credentials.json");
-
-  const token = JSON.parse(readFileSync(tokenPath, "utf-8"));
-  const creds = JSON.parse(readFileSync(credsPath, "utf-8"));
-  const { client_secret: cs, client_id: ci } = creds.installed || creds.web;
-
-  const oauth2Client = new google.auth.OAuth2(ci, cs, "urn:ietf:wg:oauth:2.0:oob");
-  oauth2Client.setCredentials(token);
+  const oauth2Client = new google.auth.OAuth2(client_id, client_secret, "urn:ietf:wg:oauth:2.0:oob");
+  oauth2Client.setCredentials({ refresh_token });
   return google.gmail({ version: "v1", auth: oauth2Client });
 }
 
@@ -52,11 +37,6 @@ async function ensureLabel(gmail: ReturnType<typeof auth>) {
 }
 
 async function processGmail() {
-  if (!TOKEN_PATH || !CREDENTIALS_PATH) {
-    console.error("GMAIL_TOKEN_PATH and GMAIL_CREDENTIALS_PATH must be set");
-    return;
-  }
-
   try {
     const gmail = auth();
     const labelId = await ensureLabel(gmail);
