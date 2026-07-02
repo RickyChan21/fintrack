@@ -14,17 +14,23 @@ const categoryCache = new Map<string, { name: string; id: number | null; cleanMe
 function parseBACEmail(text: string) {
   const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
 
-  function after(label: string): string | null {
-    const idx = lines.findIndex((l) => l === label || l.startsWith(label + " "));
-    if (idx === -1 || idx + 1 >= lines.length) return null;
-    return lines[idx + 1] || null;
+  const BAC_HEADERS = new Set(["Comercio", "Monto", "Fecha y hora", "Tipo de compra", "Estado"]);
+  const values: string[] = [];
+  let found = false;
+
+  for (const line of lines) {
+    if (BAC_HEADERS.has(line)) { found = true; continue; }
+    if (found) values.push(line);
   }
 
-  const merchant = after("Comercio");
-  const amountRaw = after("Monto");
-  const dateRaw = after("Fecha y hora");
-  const txType = after("Tipo de compra");
-  const status = after("Estado");
+  function nth(n: number): string | null { return n < values.length ? values[n] : null; }
+
+  // After filtering headers, values are in order: ENSA (PS), USD 151.81, 2026/..., Internet, Aprobada
+  const merchant = nth(0);
+  const amountRaw = nth(1);
+  const dateRaw = nth(2);
+  const txType = nth(3);
+  const status = nth(4);
   const cardMatch = text.match(/tarjeta\s+(\w+)\s+terminada en\s+(\d+)/);
   const amount = amountRaw ? parseFloat(amountRaw.replace(/[^0-9.]/g, "")) : null;
   const currency = amountRaw?.includes("USD") ? "USD" : amountRaw?.includes("PAB") ? "PAB" : "USD";
