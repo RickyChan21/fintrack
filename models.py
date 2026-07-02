@@ -13,7 +13,10 @@ class Transaction(SQLModel, table=True):
     merchant: str
     amount: float
     currency: str = Field(default="USD")
-    category: Optional[str] = None # Switched back to TEXT as per latest SQL
+    category: Optional[str] = None 
+    category_id: Optional[int] = None
+    bank: Optional[str] = None
+    transaction_type: Optional[str] = None
     transaction_date: Optional[datetime] = None
     processed_at: datetime = Field(default_factory=datetime.utcnow)
     raw_snippet: Optional[str] = None
@@ -25,6 +28,8 @@ class TransactionResponse(SQLModel):
     amount: float
     currency: str = "USD"
     merchant: str
+    bank: Optional[str] = None
+    transaction_type: Optional[str] = None
     date: Optional[str] = None
     confidence: float = 0.0
 

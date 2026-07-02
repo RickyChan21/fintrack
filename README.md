@@ -1,9 +1,10 @@
 # Fintrack AI Worker v2.0
 
-A robust, reliable Python worker designed to process financial transaction notifications from Redis, categorize them using a local LLM (Ollama, LM Studio, etc.), and store them in PostgreSQL.
+A robust, reliable Python worker designed to automate financial tracking. It actively pulls transaction alerts from Gmail, pushes them to a Redis queue, categorizes them using a local LLM (Ollama, LM Studio, etc.), and stores them in PostgreSQL.
 
 ## 🚀 Key Features
 
+-   **Automated Gmail Ingestion**: Periodically fetches new bank transaction emails via IMAP, automatically tagging processed emails to prevent duplicates.
 -   **Reliable Queue Implementation**: Uses the RPOPLPUSH pattern to ensure zero message loss even if the worker crashes mid-task.
 -   **Local LLM Integration**: Optimized for local models with custom base URLs and formatted JSON extraction.
 -   **Network Awareness**: Automatically detects if your local LLM host (desktop) is offline and enters a low-resource "waiting" state with exponential backoff.
@@ -36,14 +37,19 @@ Key variables:
 - `DATABASE_URL`: Your full Postgres connection string.
 - `LLM_BASE_URL`: The API endpoint of your local LLM (e.g., `http://192.168.0.XX:11434/v1`).
 - `LLM_MODEL`: The name of the model to use (e.g., `llama3`).
+- `GMAIL_USER`: Your Gmail address.
+- `GMAIL_APP_PASSWORD`: A 16-character Google App Password (do not use your real password).
+- `GMAIL_SEARCH_QUERY`: The IMAP search string to find your bank emails (e.g., `"from:notificacion_pa@pa.bac.net subject:Transaccion -label:fintrack_processed"`).
+- `GMAIL_LABEL_DONE`: The Gmail label to apply after processing (e.g., `fintrack_processed`). **You must create this label in your Gmail account manually.**
 
-### 4. Run the Worker
+### 4. Run the Application
 ```bash
-python worker.py
+bash start.sh
 ```
+*(This starts both the background Gmail ingester and the foreground Fintrack AI worker).*
 
 ## 📦 Docker Support
-The project includes a `Dockerfile` using Python 3.14-slim for production deployment.
+The project includes a `Dockerfile` using Python 3.14-slim for production deployment. It automatically uses `start.sh` to run both the email ingester and the LLM worker in a single container.
 
 ## 📊 Data Formats
 

@@ -14,4 +14,4 @@ COPY --chown=fintrack:fintrack . .
 # Add local bin to path (for pip installed packages)
 ENV PATH="/home/fintrack/.local/bin:${PATH}"
 
-CMD ["python", "worker.py"]
+CMD ["bash", "start.sh"]

@@ -93,6 +93,8 @@ def categorize_transaction_with_retry(snippet, categories):
     - amount: (Numeric value, e.g., 9.28)
     - currency: (Usually USD or PAB for Panama)
     - merchant: (Summarize the store name, e.g., "KFC" instead of "PedidosYa*Kfc Transist")
+    - bank: (The bank name, e.g., "Banco General", "BAC", "Banistmo")
+    - transaction_type: (How it was paid, e.g., "Yappy", "Credit Card", "ACH", "Visa Debit")
     - date: (ISO format YYYY-MM-DD if found)
     - confidence: (Float 0.0 to 1.0)
 
@@ -170,9 +172,12 @@ def process_message(message_json, category_map):
         
         if extracted:
             cat_name = extracted.category
+            cat_id = category_map.get(cat_name) # Lookup the ID from our memory cache
             mch = extracted.merchant
             amt = extracted.amount
             curr = extracted.currency
+            bank = extracted.bank
+            tx_type = extracted.transaction_type
             dt_str = extracted.date
             tx_dt = datetime.fromisoformat(dt_str) if dt_str else None
 
@@ -194,6 +199,9 @@ def process_message(message_json, category_map):
                     amount=amt,
                     currency=curr,
                     category=cat_name,
+                    category_id=cat_id,
+                    bank=bank,
+                    transaction_type=tx_type,
                     transaction_date=tx_dt,
                     raw_snippet=snippet,
                     confidence_score=conf,
@@ -206,6 +214,8 @@ def process_message(message_json, category_map):
                 table = Table(title=f"New Transaction: {tx_id}", show_header=False, border_style="green")
                 table.add_row("Merchant", mch)
                 table.add_row("Amount", f"{amt} {curr}")
+                table.add_row("Bank", bank or "[dim]Unknown[/dim]")
+                table.add_row("Type", tx_type or "[dim]Unknown[/dim]")
                 table.add_row("Category", f"{cat_name}")
                 table.add_row("Date", str(tx_dt))
                 table.add_row("Confidence", f"[{conf_color}]{conf:.2f}[/{conf_color}]")
