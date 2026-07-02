@@ -12,12 +12,19 @@ const openai = new OpenAI({ baseURL: LLM_BASE_URL, apiKey: OPENAI_API_KEY });
 const categoryCache = new Map<string, { name: string; id: number | null; cleanMerchant: string }>();
 
 function parseBACEmail(text: string) {
-  const lines = text.split("\n").map((l) => l.trim());
-  const merchant = extractField(lines, "Comercio");
-  const amountRaw = extractField(lines, "Monto");
-  const dateRaw = extractField(lines, "Fecha y hora");
-  const txType = extractField(lines, "Tipo de compra");
-  const status = extractField(lines, "Estado");
+  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+
+  function after(label: string): string | null {
+    const idx = lines.findIndex((l) => l === label || l.startsWith(label + " "));
+    if (idx === -1 || idx + 1 >= lines.length) return null;
+    return lines[idx + 1] || null;
+  }
+
+  const merchant = after("Comercio");
+  const amountRaw = after("Monto");
+  const dateRaw = after("Fecha y hora");
+  const txType = after("Tipo de compra");
+  const status = after("Estado");
   const cardMatch = text.match(/tarjeta\s+(\w+)\s+terminada en\s+(\d+)/);
   const amount = amountRaw ? parseFloat(amountRaw.replace(/[^0-9.]/g, "")) : null;
   const currency = amountRaw?.includes("USD") ? "USD" : amountRaw?.includes("PAB") ? "PAB" : "USD";
@@ -25,14 +32,6 @@ function parseBACEmail(text: string) {
   const bank = "BAC";
   const transactionType = cardMatch ? cardMatch[1] : txType;
   return { merchant, amount, currency, date, bank, transactionType, status };
-}
-
-function extractField(lines: string[], label: string): string | null {
-  for (const line of lines) {
-    if (line.startsWith(label + ":")) return line.slice(label.length + 1).trim() || null;
-    if (line.startsWith(label + "=")) return line.slice(label.length + 1).trim() || null;
-  }
-  return null;
 }
 
 async function categorizeMerchant(merchant: string, categories: string[]) {
