@@ -46,7 +46,7 @@ export function SpendingChart({ data, resolution, onResolutionChange }: Spending
             <BarChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
               <XAxis dataKey="date" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
-              <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={(v) => `$${v}`} />
+              <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={(v: number) => `$${v}`} />
               <Tooltip />
               {allCategories.map((cat, i) => (
                 <Bar key={cat} dataKey={cat} stackId="a" fill={colors[i % colors.length]} radius={[2, 2, 0, 0]} />

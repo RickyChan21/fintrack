@@ -27,7 +27,7 @@ export function CategoryChart({ data }: CategoryChartProps) {
                     <Cell key={i} fill={COLORS[i % COLORS.length]} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(value: number) => [`$${value.toFixed(2)}`, "Spent"]} />
+                <Tooltip formatter={(value: number) => `$${value.toFixed(2)}`} />
               </PieChart>
             </ResponsiveContainer>
           </div>
