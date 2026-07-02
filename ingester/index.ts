@@ -1,5 +1,6 @@
 import { google } from "googleapis";
 import { createHash } from "crypto";
+import { simpleParser } from "mailparser";
 import { queue } from "../src/lib/queue";
 
 const GMAIL_SEARCH_QUERY = process.env.GMAIL_SEARCH_QUERY || "from:alerts@chase.com -label:fintrack_processed";
@@ -59,23 +60,12 @@ async function processGmail() {
       const detail = await gmail.users.messages.get({
         userId: "me",
         id: msg.id!,
-        format: "full",
+        format: "raw",
       });
 
-      const payload = detail.data.payload;
-      let text = "";
-
-      if (payload?.parts) {
-        for (const part of payload.parts) {
-          if (part.mimeType === "text/plain" && part.body?.data) {
-            text = Buffer.from(part.body.data, "base64url").toString("utf-8");
-            break;
-          }
-        }
-      } else if (payload?.body?.data) {
-        text = Buffer.from(payload.body.data, "base64url").toString("utf-8");
-      }
-
+      const raw = Buffer.from(detail.data.raw!, "base64url");
+      const parsed = await simpleParser(raw);
+      const text = parsed.text || "";
       if (!text.trim()) continue;
 
       const msgId = detail.data.internalDate || msg.id!;
