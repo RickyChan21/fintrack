@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional
-from sqlmodel import Field, SQLModel, create_engine, Session, Column
+from sqlmodel import Field, SQLModel, create_engine, Session, Column, text
 from pgvector.sqlalchemy import Vector
 
 class Category(SQLModel, table=True):
@@ -35,4 +35,7 @@ class TransactionResponse(SQLModel):
     confidence: float = 0.0
 
 def create_db_and_tables(engine):
+    with engine.connect() as conn:
+        conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        conn.commit()
     SQLModel.metadata.create_all(engine)
