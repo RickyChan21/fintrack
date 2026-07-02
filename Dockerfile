@@ -14,4 +14,7 @@ COPY --chown=fintrack:fintrack . .
 # Add local bin to path (for pip installed packages)
 ENV PATH="/home/fintrack/.local/bin:${PATH}"
 
+# Expose Streamlit Dashboard port
+EXPOSE 8501
+
 CMD ["bash", "start.sh"]
