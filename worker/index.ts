@@ -22,6 +22,26 @@ function gmailAuth() {
 
 const categoryCache = new Map<string, { name: string; id: number | null; cleanMerchant: string; confidence: number }>();
 
+const NORMALIZE: Record<string, string> = {
+  "amazon.com": "Amazon",
+  "amazon mkplce pmts": "Amazon",
+  "amazon marketplace": "Amazon",
+  "bb q chicken": "BBQ Chicken",
+  "little caesars": "Little Caesars",
+  "recarga panapass": "Panapass Top-Up",
+  "do it center": "Do It Center",
+  "nuevo oriente": "Nuevo Oriente",
+  "ovnicom": "Ovnicon",
+};
+
+function normalizeMerchant(raw: string): string {
+  const lower = raw.toLowerCase().trim();
+  for (const [key, val] of Object.entries(NORMALIZE)) {
+    if (lower.includes(key) || key.includes(lower)) return val;
+  }
+  return raw;
+}
+
 function parseBACEmail(text: string) {
   const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
 
@@ -51,18 +71,16 @@ function parseBACEmail(text: string) {
   return { merchant, amount, currency, date, bank, transactionType, status };
 }
 
-async function categorizeMerchant(merchant: string, categories: string[]) {
+async function categorizeMerchant(raw: string, categories: string[]) {
+  const merchant = normalizeMerchant(raw);
+
   const cached = categoryCache.get(merchant);
   if (cached) return cached;
 
   const prompt = [
     `From this list of categories: [${categories.join(", ")}]`,
-    `Clean up and categorize this merchant: "${merchant}"`,
-    `- Remove gateway prefixes (PEDIDOSYA*, PAGUELOFA*, etc.)`,
-    `- Remove POS/suffix codes like (PS), (WEB), etc.`,
-    `- Normalize common merchants: "AMAZON MKTPLACE PMTS" → "Amazon", "BB Q CHICKEN" → "BBQ Chicken", etc.`,
-    `- Merge similar names so the same store always has the same clean name`,
-    `Respond with JSON: { "clean_merchant": "...", "category": "..." }`,
+    `Categorize this merchant: "${merchant}"`,
+    `Respond with JSON: { "category": "..." }`,
   ].join("\n");
 
   const response = await openai.chat.completions.create({
@@ -75,7 +93,6 @@ async function categorizeMerchant(merchant: string, categories: string[]) {
   });
 
   const result = JSON.parse(response.choices[0].message.content || "{}");
-  const cleanMerchant = result.clean_merchant || merchant;
   let catName = categories.find((c) => c.toLowerCase() === result.category?.toLowerCase());
   let confidence = 1.0;
 
@@ -91,7 +108,7 @@ async function categorizeMerchant(merchant: string, categories: string[]) {
   }
 
   const category = await prisma.category.findUnique({ where: { name: catName } });
-  const entry = { name: catName, id: category?.id || null, cleanMerchant, confidence };
+  const entry = { name: catName, id: category?.id || null, cleanMerchant: merchant, confidence };
   categoryCache.set(merchant, entry);
   return entry;
 }
@@ -111,11 +128,12 @@ async function processMessage(data: { id: string; snippet: string; gmailId?: str
 
   const categories = (await prisma.category.findMany()).map((c) => c.name);
   const { name: catName, id: catId, cleanMerchant, confidence } = await categorizeMerchant(parsed.merchant, categories);
+  const merchant = cleanMerchant;
 
   await prisma.transaction.create({
     data: {
       id,
-      merchant: cleanMerchant,
+      merchant,
       amount: parsed.amount,
       currency: parsed.currency,
       categoryId: catId,
@@ -139,7 +157,7 @@ async function processMessage(data: { id: string; snippet: string; gmailId?: str
     }
   }
 
-  console.log(`Processed: ${id} - ${cleanMerchant} $${parsed.amount} [${catName}]`);
+  console.log(`Processed: ${id} - ${merchant} $${parsed.amount} [${catName}]`);
 }
 
 async function main() {
