@@ -1,3 +1,8 @@
+"use client";
+
+import { useState } from "react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -15,6 +20,7 @@ interface Transaction {
 
 interface TransactionTableProps {
   transactions: Transaction[];
+  onUpdate?: () => void;
 }
 
 const categoryColors: Record<string, string> = {
@@ -31,7 +37,21 @@ const categoryColors: Record<string, string> = {
   Income: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300",
 };
 
-export function TransactionTable({ transactions }: TransactionTableProps) {
+export function TransactionTable({ transactions, onUpdate }: TransactionTableProps) {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
+
+  async function saveEdit(id: string) {
+    if (!editValue.trim()) return;
+    await fetch("/api/transactions", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, merchant: editValue.trim() }),
+    });
+    setEditingId(null);
+    onUpdate?.();
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -48,13 +68,30 @@ export function TransactionTable({ transactions }: TransactionTableProps) {
                 <TableHead>Type</TableHead>
                 <TableHead className="text-right">Category</TableHead>
                 <TableHead className="text-right">Amount</TableHead>
+                <TableHead className="w-16"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {transactions.map((tx) => (
                 <TableRow key={tx.id}>
                   <TableCell className="text-muted-foreground whitespace-nowrap">{tx.date || "—"}</TableCell>
-                  <TableCell className="font-medium">{tx.merchant}</TableCell>
+                  <TableCell className="font-medium">
+                    {editingId === tx.id ? (
+                      <div className="flex gap-1">
+                        <Input
+                          value={editValue}
+                          onChange={(e) => setEditValue(e.target.value)}
+                          onKeyDown={(e) => e.key === "Enter" && saveEdit(tx.id)}
+                          className="h-7 text-xs"
+                          autoFocus
+                        />
+                        <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => saveEdit(tx.id)}>✓</Button>
+                        <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setEditingId(null)}>✕</Button>
+                      </div>
+                    ) : (
+                      tx.merchant
+                    )}
+                  </TableCell>
                   <TableCell className="text-muted-foreground text-xs">{tx.bank || "—"}</TableCell>
                   <TableCell className="text-xs">{tx.type || "—"}</TableCell>
                   <TableCell className="text-right">
@@ -65,6 +102,14 @@ export function TransactionTable({ transactions }: TransactionTableProps) {
                     )}
                   </TableCell>
                   <TableCell className="text-right font-medium whitespace-nowrap">${tx.amount.toFixed(2)}</TableCell>
+                  <TableCell>
+                    <button
+                      onClick={() => { setEditingId(tx.id); setEditValue(tx.merchant); }}
+                      className="text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      ✎
+                    </button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

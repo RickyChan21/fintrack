@@ -60,6 +60,7 @@ export default function TransactionsPage() {
             ? new Date(t.transactionDate).toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" })
             : null,
         }))}
+        onUpdate={fetchData}
       />
     </div>
   );

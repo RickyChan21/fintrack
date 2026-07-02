@@ -40,3 +40,13 @@ export async function GET(request: Request) {
 
   return NextResponse.json(transactions);
 }
+
+export async function PUT(request: Request) {
+  if (!prisma) return NextResponse.json({ error: "No database" }, { status: 500 });
+
+  const { id, merchant } = await request.json();
+  if (!id || !merchant) return NextResponse.json({ error: "ID and merchant required" }, { status: 400 });
+
+  await prisma.transaction.update({ where: { id }, data: { merchant } });
+  return NextResponse.json({ ok: true });
+}
