@@ -31,7 +31,6 @@ const NORMALIZE: Record<string, string> = {
   "recarga panapass": "Panapass Top-Up",
   "do it center": "Do It Center",
   "nuevo oriente": "Nuevo Oriente",
-  "ovnicom": "Ovnicon",
   "alipay": "AliExpress",
 };
 
