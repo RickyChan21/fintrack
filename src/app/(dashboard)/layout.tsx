@@ -1,5 +1,6 @@
 import { SidebarNav } from "@/components/sidebar-nav";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { QueueStatus } from "@/components/queue-status";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -14,6 +15,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <span className="ml-2.5 text-base font-bold">Fintrack</span>
         </div>
         <SidebarNav />
+        <QueueStatus />
         <div className="px-3 pb-4 border-t border-border pt-3 mt-auto">
           <ThemeToggle />
         </div>

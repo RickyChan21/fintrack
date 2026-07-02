@@ -71,13 +71,7 @@ async function processGmail() {
       const msgId = detail.data.internalDate || msg.id!;
       const txId = createHash("md5").update(msgId.toString()).digest("hex");
 
-      await queue.add("process", { id: txId, snippet: text }, { jobId: txId });
-
-      await gmail.users.messages.modify({
-        userId: "me",
-        id: msg.id!,
-        requestBody: { addLabelIds: [labelId] },
-      });
+      await queue.add("process", { id: txId, snippet: text, gmailId: msg.id, labelId }, { jobId: txId });
 
       console.log(`Queued: ${txId}`);
     }
