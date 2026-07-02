@@ -8,6 +8,9 @@ interface Transaction {
   amount: number;
   category: string | null;
   date: string | null;
+  bank: string | null;
+  type: string | null;
+  confidence: number | null;
 }
 
 interface TransactionTableProps {
@@ -41,6 +44,8 @@ export function TransactionTable({ transactions }: TransactionTableProps) {
               <TableRow>
                 <TableHead>Date</TableHead>
                 <TableHead>Merchant</TableHead>
+                <TableHead>Bank</TableHead>
+                <TableHead>Type</TableHead>
                 <TableHead className="text-right">Category</TableHead>
                 <TableHead className="text-right">Amount</TableHead>
               </TableRow>
@@ -48,8 +53,10 @@ export function TransactionTable({ transactions }: TransactionTableProps) {
             <TableBody>
               {transactions.map((tx) => (
                 <TableRow key={tx.id}>
-                  <TableCell className="text-muted-foreground">{tx.date || "—"}</TableCell>
+                  <TableCell className="text-muted-foreground whitespace-nowrap">{tx.date || "—"}</TableCell>
                   <TableCell className="font-medium">{tx.merchant}</TableCell>
+                  <TableCell className="text-muted-foreground text-xs">{tx.bank || "—"}</TableCell>
+                  <TableCell className="text-xs">{tx.type || "—"}</TableCell>
                   <TableCell className="text-right">
                     {tx.category && (
                       <Badge variant="outline" className={categoryColors[tx.category] || ""}>
@@ -57,7 +64,7 @@ export function TransactionTable({ transactions }: TransactionTableProps) {
                       </Badge>
                     )}
                   </TableCell>
-                  <TableCell className="text-right font-medium">${tx.amount.toFixed(2)}</TableCell>
+                  <TableCell className="text-right font-medium whitespace-nowrap">${tx.amount.toFixed(2)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

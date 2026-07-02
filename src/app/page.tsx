@@ -143,6 +143,9 @@ export default function Dashboard() {
               merchant: t.merchant,
               amount: t.amount,
               category: t.categoryName,
+              bank: t.bank,
+              type: t.transactionType,
+              confidence: t.confidenceScore,
               date: t.transactionDate ? new Date(t.transactionDate).toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" }) : null,
             }))}
           />
