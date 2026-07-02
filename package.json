@@ -6,8 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "worker": "tsx src/worker/index.ts",
-    "ingester": "tsx src/ingester/index.ts",
+    "worker": "tsx worker/index.ts",
+    "ingester": "tsx ingester/index.ts",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:seed": "tsx src/lib/seed.ts"
@@ -39,6 +39,7 @@
   },
   "devDependencies": {
     "@types/imap": "^0.8.38",
+    "@types/mailparser": "^3.4.0",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",

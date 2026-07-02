@@ -7,10 +7,10 @@ echo "Seeding categories..."
 npx tsx src/lib/seed.ts
 
 echo "Starting Gmail Ingester in background..."
-npx tsx src/ingester/index.ts &
+npx tsx ingester/index.ts &
 
 echo "Starting Worker in background..."
-npx tsx src/worker/index.ts &
+npx tsx worker/index.ts &
 
 echo "Starting Next.js dashboard on port 3000..."
 npx next start --port 3000
