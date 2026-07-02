@@ -3,6 +3,7 @@ import pandas as pd
 import streamlit as st
 from sqlmodel import Session, create_engine, select
 from dotenv import load_dotenv
+import altair as alt
 
 from models import Transaction
 
@@ -125,44 +126,68 @@ else:
     st.markdown("<br>", unsafe_allow_html=True)
     
     # ------------------ CHARTS ------------------
-    col_chart1, col_chart2 = st.columns(2)
+    st.subheader("📈 Spending Timeline by Category")
     
-    with col_chart1:
-        st.subheader("📊 Spending by Category")
-        cat_spending = df.groupby("Category")["Amount"].sum().reset_index()
-        cat_spending = cat_spending.sort_values(by="Amount", ascending=False)
-        # Built-in elegant bar chart
-        st.bar_chart(cat_spending, x="Category", y="Amount", color="#10B981")
+    time_res = st.radio(
+        "Resolution", 
+        ["Daily", "Weekly", "Monthly", "Yearly"], 
+        horizontal=True, 
+        label_visibility="collapsed"
+    )
+    
+    timeline = df.copy()
+    timeline = timeline.dropna(subset=['Date']) 
+    
+    if time_res == "Daily":
+        timeline['Date'] = timeline['Date'].dt.date
+    elif time_res == "Weekly":
+        timeline['Date'] = timeline['Date'].dt.to_period('W').apply(lambda r: r.start_time).dt.date
+    elif time_res == "Monthly":
+        timeline['Date'] = timeline['Date'].dt.to_period('M').apply(lambda r: r.start_time).dt.date
+    elif time_res == "Yearly":
+        timeline['Date'] = timeline['Date'].dt.to_period('Y').apply(lambda r: r.start_time).dt.date
         
-    with col_chart2:
-        st.subheader("📈 Timeline")
-        
-        # Sleek horizontal selector for time resolution
-        time_res = st.radio(
-            "Resolution", 
-            ["Daily", "Weekly", "Monthly", "Yearly"], 
-            horizontal=True, 
-            label_visibility="collapsed"
-        )
-        
-        timeline = df.copy()
-        # Ensure we only plot rows that actually have a date
-        timeline = timeline.dropna(subset=['Date']) 
-        
-        # Group data based on the selected resolution
-        if time_res == "Daily":
-            timeline['Date'] = timeline['Date'].dt.date
-        elif time_res == "Weekly":
-            timeline['Date'] = timeline['Date'].dt.to_period('W').apply(lambda r: r.start_time).dt.date
-        elif time_res == "Monthly":
-            timeline['Date'] = timeline['Date'].dt.to_period('M').apply(lambda r: r.start_time).dt.date
-        elif time_res == "Yearly":
-            timeline['Date'] = timeline['Date'].dt.to_period('Y').apply(lambda r: r.start_time).dt.date
-            
-        timeline_spending = timeline.groupby("Date")["Amount"].sum().reset_index()
-        
-        # Built-in elegant line chart
-        st.line_chart(timeline_spending, x="Date", y="Amount", color="#3B82F6")
+    # Group by both Date and Category
+    timeline_spending = timeline.groupby(["Date", "Category"])["Amount"].sum().reset_index()
+    
+    # Altair Stacked Bar Chart with horizontal legend
+    chart = alt.Chart(timeline_spending).mark_bar(cornerRadiusTopLeft=2, cornerRadiusTopRight=2).encode(
+        x=alt.X('Date:T', title=''),
+        y=alt.Y('Amount:Q', title='Amount ($)'),
+        color=alt.Color('Category:N', legend=alt.Legend(orient='bottom', direction='horizontal', title=None)),
+        tooltip=[
+            alt.Tooltip('Date:T', title='Date'), 
+            alt.Tooltip('Category:N', title='Category'), 
+            alt.Tooltip('Amount:Q', title='Amount', format='$.2f')
+        ]
+    ).properties(height=400)
+    
+    st.altair_chart(chart, use_container_width=True)
+    
+    # ------------------ HISTORICAL MATRIX ------------------
+    st.markdown("---")
+    st.subheader("🗓️ Historical Monthly Breakdown")
+    
+    hist_df = df.dropna(subset=['Date']).copy()
+    hist_df['Month'] = hist_df['Date'].dt.strftime('%Y-%m')
+    
+    # Pivot so Rows = Month, Columns = Category
+    pivot_df = hist_df.pivot_table(index='Month', columns='Category', values='Amount', aggfunc='sum', fill_value=0)
+    
+    # Calculate Total spent for each month
+    pivot_df['Total Monthly Spend'] = pivot_df.sum(axis=1)
+    
+    # Move the Total column to the very left for easy reading
+    cols = ['Total Monthly Spend'] + [c for c in pivot_df.columns if c != 'Total Monthly Spend']
+    pivot_df = pivot_df[cols]
+    
+    # Sort months descending (newest on top)
+    pivot_df = pivot_df.sort_index(ascending=False)
+    
+    st.dataframe(
+        pivot_df.style.format("${:,.2f}"),
+        use_container_width=True
+    )
         
     # ------------------ DATA TABLE ------------------
     st.markdown("---")
