@@ -21,6 +21,17 @@ function gmailAuth() {
 }
 
 const categoryCache = new Map<string, { name: string; id: number | null; cleanMerchant: string; confidence: number }>();
+let categoriesCache: string[] | null = null;
+let lastCategoryRefresh = 0;
+
+async function getCategories(): Promise<string[]> {
+  const now = Date.now();
+  if (categoriesCache && now - lastCategoryRefresh < 600000) return categoriesCache;
+  const cats = await prisma.category.findMany();
+  categoriesCache = cats.map((c) => c.name);
+  lastCategoryRefresh = now;
+  return categoriesCache;
+}
 
 function parseBACEmail(text: string) {
   const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
@@ -107,7 +118,7 @@ async function processMessage(data: { id: string; snippet: string; gmailId?: str
     return;
   }
 
-  const categories = (await prisma.category.findMany()).map((c) => c.name);
+  const categories = await getCategories();
   const { name: catName, id: catId, cleanMerchant, confidence } = await categorizeMerchant(parsed.merchant, categories);
 
   await prisma.transaction.create({
