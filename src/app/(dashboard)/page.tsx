@@ -99,60 +99,48 @@ export default function Dashboard() {
   const topCat = stats?.topCategory || "N/A";
 
   return (
-    <div className="min-h-screen">
-      <div className="border-b">
-        <div className="flex h-16 items-center px-8 gap-4">
-          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-            <svg className="w-5 h-5 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
-          <span className="text-lg font-bold">Fintrack</span>
-        </div>
+    <div className="px-8 py-6 space-y-6">
+      <Filters
+        categories={categories}
+        search={search}
+        category={category}
+        days={days}
+        onSearchChange={setSearch}
+        onCategoryChange={setCategory}
+        onDaysChange={setDays}
+      />
+      <KpiCards
+        totalSpent={totalSpent}
+        txCount={txCount}
+        avgAmount={avgAmount}
+        topCategory={topCat}
+      />
+      <div className="grid grid-cols-2 gap-6">
+        <CategoryChart data={categoryData} />
+        <MerchantList merchants={merchantData} />
       </div>
-      <div className="px-8 py-6 space-y-6">
-        <Filters
-          categories={categories}
-          search={search}
-          category={category}
-          days={days}
-          onSearchChange={setSearch}
-          onCategoryChange={setCategory}
-          onDaysChange={setDays}
+      <SpendingChart
+        data={timelineData}
+        resolution={resolution}
+        onResolutionChange={setResolution}
+      />
+      <div className="grid grid-cols-2 gap-6">
+        <MonthlyBreakdown data={monthlyData} />
+        <TransactionTable
+          transactions={transactions.map((t: any) => ({
+            id: t.id,
+            merchant: t.merchant,
+            amount: t.amount,
+            category: t.categoryName,
+            bank: t.bank,
+            type: t.transactionType,
+            confidence: t.confidenceScore,
+            date: t.transactionDate ? new Date(t.transactionDate).toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" }) : null,
+          }))}
         />
-        <KpiCards
-          totalSpent={totalSpent}
-          txCount={txCount}
-          avgAmount={avgAmount}
-          topCategory={topCat}
-        />
-        <div className="grid grid-cols-2 gap-6">
-          <CategoryChart data={categoryData} />
-          <MerchantList merchants={merchantData} />
-        </div>
-        <SpendingChart
-          data={timelineData}
-          resolution={resolution}
-          onResolutionChange={setResolution}
-        />
-        <div className="grid grid-cols-2 gap-6">
-          <MonthlyBreakdown data={monthlyData} />
-          <TransactionTable
-            transactions={transactions.map((t: any) => ({
-              id: t.id,
-              merchant: t.merchant,
-              amount: t.amount,
-              category: t.categoryName,
-              bank: t.bank,
-              type: t.transactionType,
-              confidence: t.confidenceScore,
-              date: t.transactionDate ? new Date(t.transactionDate).toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" }) : null,
-            }))}
-          />
-        </div>
+      </div>
 
-        <AddCategory onAdded={fetchData} />
-      </div>
+      <AddCategory onAdded={fetchData} />
     </div>
   );
 }

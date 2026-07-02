@@ -8,6 +8,7 @@ export async function GET(request: Request) {
   const query = searchParams.get("q")?.toLowerCase();
   const category = searchParams.get("category");
   const days = searchParams.get("days") ? parseInt(searchParams.get("days")!) : null;
+  const take = searchParams.get("take") ? parseInt(searchParams.get("take")!) : 100;
 
   const where: any = {};
 
@@ -33,7 +34,7 @@ export async function GET(request: Request) {
   const transactions = await prisma.transaction.findMany({
     where,
     orderBy: { transactionDate: "desc" },
-    take: 100,
+    take,
   });
 
   return NextResponse.json(transactions);
