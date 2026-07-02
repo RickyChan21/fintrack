@@ -34,7 +34,7 @@ function parseBACEmail(text: string) {
   const cardMatch = text.match(/tarjeta\s+(\w+)\s+terminada en\s+(\d+)/);
   const amount = amountRaw ? parseFloat(amountRaw.replace(/[^0-9.]/g, "")) : null;
   const currency = amountRaw?.includes("USD") ? "USD" : amountRaw?.includes("PAB") ? "PAB" : "USD";
-  const date = dateRaw ? new Date(dateRaw.replace("-", "T").replace(/(\d{4}\/\d{2}\/\d{2})-(\d{2}:\d{2}:\d{2})/, "$1T$2")) : null;
+  const date = dateRaw ? new Date(dateRaw.replace(/-/g, "T").replace(/\//g, "-").replace("TT", "T")) : null;
   const bank = "BAC";
   const transactionType = cardMatch ? cardMatch[1] : txType;
   return { merchant, amount, currency, date, bank, transactionType, status };
