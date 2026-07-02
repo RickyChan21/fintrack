@@ -9,7 +9,7 @@ const LLM_MODEL = process.env.LLM_MODEL || "deepseek-chat";
 const prisma = new PrismaClient();
 const openai = new OpenAI({ baseURL: LLM_BASE_URL, apiKey: OPENAI_API_KEY });
 
-const categoryCache = new Map<string, { name: string; id: number | null }>();
+const categoryCache = new Map<string, { name: string; id: number | null; cleanMerchant: string }>();
 
 function parseBACEmail(text: string) {
   const lines = text.split("\n").map((l) => l.trim());
@@ -41,8 +41,10 @@ async function categorizeMerchant(merchant: string, categories: string[]) {
 
   const prompt = [
     `From this list of categories: [${categories.join(", ")}]`,
-    `Choose the best category for merchant: "${merchant}"`,
-    `Respond with JSON: { "category": "...", "confidence": 0.0-1.0 }`,
+    `Clean up and categorize this merchant: "${merchant}"`,
+    `- Remove gateway prefixes (PEDIDOSYA*, PAGUELOFA*, etc.)`,
+    `- Remove POS/suffix codes like (PS), (WEB), etc.`,
+    `Respond with JSON: { "clean_merchant": "...", "category": "...", "confidence": 0.0-1.0 }`,
   ].join("\n");
 
   const response = await openai.chat.completions.create({
@@ -55,6 +57,7 @@ async function categorizeMerchant(merchant: string, categories: string[]) {
   });
 
   const result = JSON.parse(response.choices[0].message.content || "{}");
+  const cleanMerchant = result.clean_merchant || merchant;
   let catName = categories.find((c) => c.toLowerCase() === result.category?.toLowerCase());
   if (!catName) {
     catName = categories.find(
@@ -64,7 +67,7 @@ async function categorizeMerchant(merchant: string, categories: string[]) {
   if (!catName) catName = "Miscellaneous";
 
   const category = await prisma.category.findUnique({ where: { name: catName } });
-  const entry = { name: catName, id: category?.id || null };
+  const entry = { name: catName, id: category?.id || null, cleanMerchant };
   categoryCache.set(merchant, entry);
   return entry;
 }
@@ -83,12 +86,12 @@ async function processMessage(data: { id: string; snippet: string }) {
   }
 
   const categories = (await prisma.category.findMany()).map((c) => c.name);
-  const { name: catName, id: catId } = await categorizeMerchant(parsed.merchant, categories);
+  const { name: catName, id: catId, cleanMerchant } = await categorizeMerchant(parsed.merchant, categories);
 
   await prisma.transaction.create({
     data: {
       id,
-      merchant: parsed.merchant,
+      merchant: cleanMerchant,
       amount: parsed.amount,
       currency: parsed.currency,
       categoryId: catId,
