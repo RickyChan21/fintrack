@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
 export async function GET(request: Request) {
+  if (!prisma) return NextResponse.json([]);
+
   const { searchParams } = new URL(request.url);
   const query = searchParams.get("q")?.toLowerCase();
   const category = searchParams.get("category");

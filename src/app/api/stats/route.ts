@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
 export async function GET() {
+  if (!prisma) return NextResponse.json({ totalSpent: 0, txCount: 0, avgAmount: 0, topCategory: "N/A", categoryNames: [] });
+
   const transactions = await prisma.transaction.findMany();
 
   const totalSpent = transactions.reduce((s, t) => s + t.amount, 0);

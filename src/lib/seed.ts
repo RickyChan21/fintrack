@@ -7,6 +7,7 @@ const categories = [
 ];
 
 async function main() {
+  if (!prisma) { console.error("DATABASE_URL not set"); return; }
   for (const name of categories) {
     await prisma.category.upsert({
       where: { name },
