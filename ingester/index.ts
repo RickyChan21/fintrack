@@ -1,102 +1,104 @@
-import Imap from "imap";
-import { simpleParser } from "mailparser";
+import { google } from "googleapis";
+import { readFileSync } from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 import { createHash } from "crypto";
 import { queue } from "../src/lib/queue";
 
-const GMAIL_USER = process.env.GMAIL_USER!;
-const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD!;
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 const GMAIL_SEARCH_QUERY = process.env.GMAIL_SEARCH_QUERY || "from:alerts@chase.com -label:fintrack_processed";
 const GMAIL_LABEL_DONE = process.env.GMAIL_LABEL_DONE || "fintrack_processed";
 const POLL_INTERVAL = parseInt(process.env.GMAIL_POLL_INTERVAL || "300");
+const TOKEN_PATH = process.env.GMAIL_TOKEN_PATH || path.join(__dirname, "..", "token.json");
+const CREDENTIALS_PATH = process.env.GMAIL_CREDENTIALS_PATH || path.join(__dirname, "..", "credentials.json");
 
-function connectImap(): Promise<Imap> {
-  return new Promise((resolve, reject) => {
-    const imap = new Imap({
-      user: GMAIL_USER,
-      password: GMAIL_APP_PASSWORD,
-      host: "imap.gmail.com",
-      port: 993,
-      tls: true,
-      tlsOptions: { rejectUnauthorized: false },
-    });
-    imap.once("ready", () => resolve(imap));
-    imap.once("error", reject);
-    imap.connect();
-  });
+function auth() {
+  const token = JSON.parse(readFileSync(TOKEN_PATH, "utf-8"));
+  const creds = JSON.parse(readFileSync(CREDENTIALS_PATH, "utf-8"));
+  const { client_secret, client_id } = creds.installed || creds.web;
+
+  const oauth2Client = new google.auth.OAuth2(client_id, client_secret, "urn:ietf:wg:oauth:2.0:oob");
+  oauth2Client.setCredentials(token);
+  return google.gmail({ version: "v1", auth: oauth2Client });
 }
 
-function searchEmails(imap: Imap): Promise<number[]> {
-  return new Promise((resolve, reject) => {
-    imap.openBox("[Gmail]/All Mail", true, (err) => {
-      if (err) imap.openBox("INBOX", true, (err2) => {
-        if (err2) return reject(err2);
-        search();
-      });
-      else search();
-    });
-    function search() {
-      imap.seq.search([["X-GM-RAW", GMAIL_SEARCH_QUERY]], (err, results) => {
-        if (err) reject(err);
-        else resolve(results || []);
-      });
-    }
-  });
-}
+async function ensureLabel(gmail: ReturnType<typeof auth>) {
+  const res = await gmail.users.labels.list({ userId: "me" });
+  const existing = res.data.labels?.find((l) => l.name === GMAIL_LABEL_DONE);
+  if (existing) return existing.id!;
 
-function fetchEmail(imap: Imap, seqno: number): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const f = imap.seq.fetch(seqno, { bodies: "" });
-    f.on("message", (msg) => {
-      msg.on("body", (stream) => {
-        let chunks = "";
-        stream.on("data", (chunk: Buffer) => (chunks += chunk.toString()));
-        stream.on("end", () => resolve(chunks));
-      });
-    });
-    f.once("error", reject);
+  const created = await gmail.users.labels.create({
+    userId: "me",
+    requestBody: {
+      name: GMAIL_LABEL_DONE,
+      labelListVisibility: "labelHide",
+      messageListVisibility: "show",
+    },
   });
-}
-
-function applyLabel(imap: Imap, seqno: number): Promise<void> {
-  return new Promise((resolve, reject) => {
-    imap.seq.addFlags(seqno, `\\+X-GM-LABELS ${GMAIL_LABEL_DONE}`, (err) => {
-      if (err) reject(err);
-      else resolve();
-    });
-  });
+  return created.data.id!;
 }
 
 async function processGmail() {
-  if (!GMAIL_USER || !GMAIL_APP_PASSWORD) {
-    console.error("GMAIL_USER and GMAIL_APP_PASSWORD must be set");
+  if (!TOKEN_PATH || !CREDENTIALS_PATH) {
+    console.error("GMAIL_TOKEN_PATH and GMAIL_CREDENTIALS_PATH must be set");
     return;
   }
 
   try {
-    const imap = await connectImap();
-    const results = await searchEmails(imap);
+    const gmail = auth();
+    const labelId = await ensureLabel(gmail);
 
-    if (results.length > 0) {
-      console.log(`Found ${results.length} new emails`);
+    const res = await gmail.users.messages.list({
+      userId: "me",
+      q: GMAIL_SEARCH_QUERY,
+      maxResults: 20,
+    });
 
-      for (const seqno of results) {
-        const raw = await fetchEmail(imap, seqno);
-        const parsed = await simpleParser(raw);
-        const text = parsed.text || "";
-        if (!text.trim()) continue;
-
-        const msgId = parsed.messageId || `seq-${seqno}`;
-        const txId = createHash("md5").update(msgId).digest("hex");
-
-        await queue.add("process", { id: txId, snippet: text }, { jobId: txId });
-        await applyLabel(imap, seqno);
-        console.log(`Queued: ${txId}`);
-      }
-    } else {
+    const messages = res.data.messages || [];
+    if (messages.length === 0) {
       console.log("No new emails");
+      return;
     }
 
-    imap.end();
+    console.log(`Found ${messages.length} new emails`);
+
+    for (const msg of messages) {
+      const detail = await gmail.users.messages.get({
+        userId: "me",
+        id: msg.id!,
+        format: "full",
+      });
+
+      const payload = detail.data.payload;
+      let text = "";
+
+      if (payload?.parts) {
+        for (const part of payload.parts) {
+          if (part.mimeType === "text/plain" && part.body?.data) {
+            text = Buffer.from(part.body.data, "base64url").toString("utf-8");
+            break;
+          }
+        }
+      } else if (payload?.body?.data) {
+        text = Buffer.from(payload.body.data, "base64url").toString("utf-8");
+      }
+
+      if (!text.trim()) continue;
+
+      const msgId = detail.data.internalDate || msg.id!;
+      const txId = createHash("md5").update(msgId.toString()).digest("hex");
+
+      await queue.add("process", { id: txId, snippet: text }, { jobId: txId });
+
+      await gmail.users.messages.modify({
+        userId: "me",
+        id: msg.id!,
+        requestBody: { addLabelIds: [labelId] },
+      });
+
+      console.log(`Queued: ${txId}`);
+    }
   } catch (err) {
     console.error("Gmail error:", err);
   }
