@@ -6,6 +6,7 @@ import { queue } from "../src/lib/queue";
 const GMAIL_USER = process.env.GMAIL_USER!;
 const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD!;
 const GMAIL_SEARCH_QUERY = process.env.GMAIL_SEARCH_QUERY || "from:alerts@chase.com -label:fintrack_processed";
+const GMAIL_LABEL_DONE = process.env.GMAIL_LABEL_DONE || "fintrack_processed";
 const POLL_INTERVAL = parseInt(process.env.GMAIL_POLL_INTERVAL || "300");
 
 function connectImap(): Promise<Imap> {
@@ -34,7 +35,7 @@ function searchEmails(imap: Imap): Promise<number[]> {
       else search();
     });
     function search() {
-      imap.search([["X-GM-RAW", GMAIL_SEARCH_QUERY]], (err, results) => {
+      imap.seq.search([["X-GM-RAW", GMAIL_SEARCH_QUERY]], (err, results) => {
         if (err) reject(err);
         else resolve(results || []);
       });
@@ -44,7 +45,7 @@ function searchEmails(imap: Imap): Promise<number[]> {
 
 function fetchEmail(imap: Imap, seqno: number): Promise<string> {
   return new Promise((resolve, reject) => {
-    const f = imap.fetch(seqno, { bodies: "" });
+    const f = imap.seq.fetch(seqno, { bodies: "" });
     f.on("message", (msg) => {
       msg.on("body", (stream) => {
         let chunks = "";
@@ -53,6 +54,15 @@ function fetchEmail(imap: Imap, seqno: number): Promise<string> {
       });
     });
     f.once("error", reject);
+  });
+}
+
+function applyLabel(imap: Imap, seqno: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    imap.seq.addFlags(seqno, `\\+X-GM-LABELS ${GMAIL_LABEL_DONE}`, (err) => {
+      if (err) reject(err);
+      else resolve();
+    });
   });
 }
 
@@ -69,7 +79,7 @@ async function processGmail() {
     if (results.length > 0) {
       console.log(`Found ${results.length} new emails`);
 
-      for (const seqno of results.slice(-10)) {
+      for (const seqno of results) {
         const raw = await fetchEmail(imap, seqno);
         const parsed = await simpleParser(raw);
         const text = parsed.text || "";
@@ -79,6 +89,7 @@ async function processGmail() {
         const txId = createHash("md5").update(msgId).digest("hex");
 
         await queue.add("process", { id: txId, snippet: text }, { jobId: txId });
+        await applyLabel(imap, seqno);
         console.log(`Queued: ${txId}`);
       }
     } else {
