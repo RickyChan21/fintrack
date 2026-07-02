@@ -20,6 +20,10 @@ interface Transaction {
 
 interface TransactionTableProps {
   transactions: Transaction[];
+  page?: number;
+  total?: number;
+  take?: number;
+  onPageChange?: (page: number) => void;
   onUpdate?: () => void;
 }
 
@@ -37,7 +41,7 @@ const categoryColors: Record<string, string> = {
   Income: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300",
 };
 
-export function TransactionTable({ transactions, onUpdate }: TransactionTableProps) {
+export function TransactionTable({ transactions, page, total, take, onPageChange, onUpdate }: TransactionTableProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
 
@@ -63,70 +67,84 @@ export function TransactionTable({ transactions, onUpdate }: TransactionTablePro
     onUpdate?.();
   }
 
+  const totalPages = total && take ? Math.ceil(total / take) : 0;
+  const currentPage = page || 1;
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Recent Transactions</CardTitle>
+        <CardTitle>Transactions {total !== undefined && total > 0 ? `(${total})` : ""}</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="max-h-80 overflow-y-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>Merchant</TableHead>
-                <TableHead>Bank</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead className="text-right">Category</TableHead>
-                <TableHead className="text-right">Amount</TableHead>
-                <TableHead className="w-16"></TableHead>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Date</TableHead>
+              <TableHead>Merchant</TableHead>
+              <TableHead>Bank</TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead className="text-right">Category</TableHead>
+              <TableHead className="text-right">Amount</TableHead>
+              <TableHead className="w-12"></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {transactions.map((tx) => (
+              <TableRow key={tx.id}>
+                <TableCell className="text-muted-foreground whitespace-nowrap">{tx.date || "—"}</TableCell>
+                <TableCell className="font-medium">
+                  {editingId === tx.id ? (
+                    <div className="flex gap-1">
+                      <Input
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && saveEdit(tx.id)}
+                        className="h-7 text-xs w-28"
+                        autoFocus
+                      />
+                      <Button size="sm" variant="ghost" className="h-7 px-1.5" onClick={() => saveEdit(tx.id)}>✓</Button>
+                      <Button size="sm" variant="ghost" className="h-7 px-1.5 text-xs" onClick={() => { saveEdit(tx.id); renameAll(tx.merchant, editValue.trim()); }}>All</Button>
+                      <Button size="sm" variant="ghost" className="h-7 px-1.5" onClick={() => setEditingId(null)}>✕</Button>
+                    </div>
+                  ) : (
+                    tx.merchant
+                  )}
+                </TableCell>
+                <TableCell className="text-muted-foreground text-xs">{tx.bank || "—"}</TableCell>
+                <TableCell className="text-xs">{tx.type || "—"}</TableCell>
+                <TableCell className="text-right">
+                  {tx.category && (
+                    <Badge variant="outline" className={categoryColors[tx.category] || ""}>
+                      {tx.category}
+                    </Badge>
+                  )}
+                </TableCell>
+                <TableCell className="text-right font-medium whitespace-nowrap">${tx.amount.toFixed(2)}</TableCell>
+                <TableCell>
+                  <button onClick={() => { setEditingId(tx.id); setEditValue(tx.merchant); }} className="text-xs text-muted-foreground hover:text-foreground">
+                    ✎
+                  </button>
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {transactions.map((tx) => (
-                <TableRow key={tx.id}>
-                  <TableCell className="text-muted-foreground whitespace-nowrap">{tx.date || "—"}</TableCell>
-                  <TableCell className="font-medium">
-                    {editingId === tx.id ? (
-                      <div className="flex gap-1">
-                        <Input
-                          value={editValue}
-                          onChange={(e) => setEditValue(e.target.value)}
-                          onKeyDown={(e) => e.key === "Enter" && saveEdit(tx.id)}
-                          className="h-7 text-xs w-32"
-                          autoFocus
-                        />
-                        <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => saveEdit(tx.id)}>✓</Button>
-                        <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => { saveEdit(tx.id); renameAll(tx.merchant, editValue.trim()); }}>All</Button>
-                        <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setEditingId(null)}>✕</Button>
-                      </div>
-                    ) : (
-                      tx.merchant
-                    )}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground text-xs">{tx.bank || "—"}</TableCell>
-                  <TableCell className="text-xs">{tx.type || "—"}</TableCell>
-                  <TableCell className="text-right">
-                    {tx.category && (
-                      <Badge variant="outline" className={categoryColors[tx.category] || ""}>
-                        {tx.category}
-                      </Badge>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right font-medium whitespace-nowrap">${tx.amount.toFixed(2)}</TableCell>
-                  <TableCell>
-                    <button
-                      onClick={() => { setEditingId(tx.id); setEditValue(tx.merchant); }}
-                      className="text-xs text-muted-foreground hover:text-foreground"
-                    >
-                      ✎
-                    </button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+            ))}
+          </TableBody>
+        </Table>
+
+        {totalPages > 1 && (
+          <div className="flex items-center justify-center gap-1 mt-4">
+            <Button variant="outline" size="sm" disabled={currentPage <= 1} onClick={() => onPageChange?.(currentPage - 1)}>
+              ←
+            </Button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+              <Button key={p} variant={p === currentPage ? "default" : "outline"} size="sm" onClick={() => onPageChange?.(p)} className="w-8">
+                {p}
+              </Button>
+            ))}
+            <Button variant="outline" size="sm" disabled={currentPage >= totalPages} onClick={() => onPageChange?.(currentPage + 1)}>
+              →
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

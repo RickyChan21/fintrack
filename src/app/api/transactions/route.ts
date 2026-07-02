@@ -9,7 +9,8 @@ export async function GET(request: Request) {
   const category = searchParams.get("category");
   const dateFrom = searchParams.get("dateFrom");
   const dateTo = searchParams.get("dateTo");
-  const take = searchParams.get("take") ? parseInt(searchParams.get("take")!) : 100;
+  const take = searchParams.get("take") ? parseInt(searchParams.get("take")!) : 25;
+  const page = searchParams.get("page") ? parseInt(searchParams.get("page")!) : 1;
 
   const where: any = {};
 
@@ -32,13 +33,17 @@ export async function GET(request: Request) {
     ];
   }
 
-  const transactions = await prisma.transaction.findMany({
-    where,
-    orderBy: { transactionDate: "desc" },
-    take,
-  });
+  const [transactions, total] = await Promise.all([
+    prisma.transaction.findMany({
+      where,
+      orderBy: { transactionDate: "desc" },
+      skip: (page - 1) * take,
+      take,
+    }),
+    prisma.transaction.count({ where }),
+  ]);
 
-  return NextResponse.json(transactions);
+  return NextResponse.json({ transactions, total, page, take });
 }
 
 export async function PUT(request: Request) {

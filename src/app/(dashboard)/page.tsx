@@ -39,7 +39,7 @@ export default function Dashboard() {
       fetch("/api/categories"),
     ]);
 
-    setTransactions(await txRes.json());
+    setTransactions(await txRes.json().then(r => r.transactions || r));
     setStats(await statsRes.json());
     setCategories(await catRes.json());
   }, [search, category, dateFrom, dateTo]);
