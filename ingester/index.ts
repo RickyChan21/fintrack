@@ -1,5 +1,5 @@
 import { google } from "googleapis";
-import { readFileSync } from "fs";
+import { readFileSync, existsSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { createHash } from "crypto";
@@ -10,15 +10,27 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const GMAIL_SEARCH_QUERY = process.env.GMAIL_SEARCH_QUERY || "from:alerts@chase.com -label:fintrack_processed";
 const GMAIL_LABEL_DONE = process.env.GMAIL_LABEL_DONE || "fintrack_processed";
 const POLL_INTERVAL = parseInt(process.env.GMAIL_POLL_INTERVAL || "300");
-const TOKEN_PATH = process.env.GMAIL_TOKEN_PATH || path.join(__dirname, "..", "token.json");
-const CREDENTIALS_PATH = process.env.GMAIL_CREDENTIALS_PATH || path.join(__dirname, "..", "credentials.json");
 
 function auth() {
-  const token = JSON.parse(readFileSync(TOKEN_PATH, "utf-8"));
-  const creds = JSON.parse(readFileSync(CREDENTIALS_PATH, "utf-8"));
-  const { client_secret, client_id } = creds.installed || creds.web;
+  const client_id = process.env.GMAIL_CLIENT_ID;
+  const client_secret = process.env.GMAIL_CLIENT_SECRET;
+  const refresh_token = process.env.GMAIL_REFRESH_TOKEN;
 
-  const oauth2Client = new google.auth.OAuth2(client_id, client_secret, "urn:ietf:wg:oauth:2.0:oob");
+  if (client_id && client_secret && refresh_token) {
+    const oauth2Client = new google.auth.OAuth2(client_id, client_secret, "urn:ietf:wg:oauth:2.0:oob");
+    oauth2Client.setCredentials({ refresh_token });
+    return google.gmail({ version: "v1", auth: oauth2Client });
+  }
+
+  // Fallback to files for local dev
+  const tokenPath = process.env.GMAIL_TOKEN_PATH || path.join(__dirname, "..", "token.json");
+  const credsPath = process.env.GMAIL_CREDENTIALS_PATH || path.join(__dirname, "..", "credentials.json");
+
+  const token = JSON.parse(readFileSync(tokenPath, "utf-8"));
+  const creds = JSON.parse(readFileSync(credsPath, "utf-8"));
+  const { client_secret: cs, client_id: ci } = creds.installed || creds.web;
+
+  const oauth2Client = new google.auth.OAuth2(ci, cs, "urn:ietf:wg:oauth:2.0:oob");
   oauth2Client.setCredentials(token);
   return google.gmail({ version: "v1", auth: oauth2Client });
 }

@@ -35,7 +35,12 @@ async function main() {
   const { tokens } = await oauth2Client.getToken(code);
   writeFileSync(TOKEN_PATH, JSON.stringify(tokens, null, 2));
 
-  console.log("\n✅ token.json saved. Copy it into your container.");
+  console.log("\n✅ token.json saved.");
+  console.log("\nFor Docker env vars, add these to your container:\n");
+  console.log(`GMAIL_CLIENT_ID=${client_id}`);
+  console.log(`GMAIL_CLIENT_SECRET=${client_secret}`);
+  console.log(`GMAIL_REFRESH_TOKEN=${tokens.refresh_token}`);
+  console.log("");
   rl.close();
 }
 
