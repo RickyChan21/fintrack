@@ -34,7 +34,7 @@ export default function Dashboard() {
     if (dateTo) params.set("dateTo", dateTo);
 
     const [txRes, statsRes, catRes] = await Promise.all([
-      fetch(`/api/transactions?${params}`),
+      fetch(`/api/transactions?${params}&take=500`),
       fetch("/api/stats"),
       fetch("/api/categories"),
     ]);
