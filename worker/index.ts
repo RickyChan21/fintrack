@@ -20,48 +20,20 @@ function gmailAuth() {
   return google.gmail({ version: "v1", auth: o });
 }
 
-const categoryCache = new Map<string, { name: string; id: number | null; cleanMerchant: string; confidence: number }>();
-
-const NORMALIZE: Record<string, string> = {
-  "amazon.com": "Amazon",
-  "amazon mkplce pmts": "Amazon",
-  "amazon marketplace": "Amazon",
-  "bb q chicken": "BBQ Chicken",
-  "little caesars": "Little Caesars",
-  "recarga panapass": "Panapass Top-Up",
-  "do it center": "Do It Center",
-  "nuevo oriente": "Nuevo Oriente",
-  "alipay": "AliExpress",
-};
-
-function normalizeMerchant(raw: string): string {
-  const lower = raw.toLowerCase().trim();
-  for (const [key, val] of Object.entries(NORMALIZE)) {
-    if (lower.includes(key) || key.includes(lower)) return val;
-  }
-  return raw;
-}
-
 function parseBACEmail(text: string) {
   const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
-
-  const BAC_HEADERS = new Set(["Comercio", "Monto", "Fecha y hora", "Tipo de compra", "Estado"]);
-  const values: string[] = [];
+  const HEADERS = new Set(["Comercio", "Monto", "Fecha y hora", "Tipo de compra", "Estado"]);
+  const vals: string[] = [];
   let found = false;
-
   for (const line of lines) {
-    if (BAC_HEADERS.has(line)) { found = true; continue; }
-    if (found) values.push(line);
+    if (HEADERS.has(line)) { found = true; continue; }
+    if (found) vals.push(line);
   }
-
-  function nth(n: number): string | null { return n < values.length ? values[n] : null; }
-
-  // After filtering headers, values are in order: ENSA (PS), USD 151.81, 2026/..., Internet, Aprobada
-  const merchant = nth(0);
-  const amountRaw = nth(1);
-  const dateRaw = nth(2);
-  const txType = nth(3);
-  const status = nth(4);
+  const merchant = vals[0];
+  const amountRaw = vals[1];
+  const dateRaw = vals[2];
+  const txType = vals[3];
+  const status = vals[4];
   const cardMatch = text.match(/tarjeta\s+(\w+)\s+terminada en\s+(\d+)/);
   const amount = amountRaw ? parseFloat(amountRaw.replace(/[^0-9.]/g, "")) : null;
   const currency = amountRaw?.includes("USD") ? "USD" : amountRaw?.includes("PAB") ? "PAB" : "USD";
@@ -71,16 +43,21 @@ function parseBACEmail(text: string) {
   return { merchant, amount, currency, date, bank, transactionType, status };
 }
 
-async function categorizeMerchant(raw: string, categories: string[]) {
-  const merchant = normalizeMerchant(raw);
+async function resolveMerchant(rawName: string, categories: string[]) {
+  if (!rawName) return null;
 
-  const cached = categoryCache.get(merchant);
-  if (cached) return cached;
+  // Look up existing alias
+  const existing = await prisma.merchantAlias.findUnique({
+    where: { rawName },
+    include: { merchant: { include: { category: true } } },
+  });
+  if (existing) return existing.merchant;
 
+  // First encounter — call LLM
   const prompt = [
     `From this list of categories: [${categories.join(", ")}]`,
-    `Categorize this merchant: "${merchant}"`,
-    `Respond with JSON: { "category": "..." }`,
+    `Categorize this merchant: "${rawName}"`,
+    `Respond with JSON: { "name": "...", "category": "..." }`,
   ].join("\n");
 
   const response = await openai.chat.completions.create({
@@ -93,24 +70,27 @@ async function categorizeMerchant(raw: string, categories: string[]) {
   });
 
   const result = JSON.parse(response.choices[0].message.content || "{}");
+  const cleanName = result.name || rawName;
   let catName = categories.find((c) => c.toLowerCase() === result.category?.toLowerCase());
-  let confidence = 1.0;
-
   if (!catName) {
     catName = categories.find(
       (c) => result.category?.toLowerCase().includes(c.toLowerCase()) || c.toLowerCase().includes(result.category?.toLowerCase() || "")
     );
-    confidence = 0.85;
-  }
-  if (!catName) {
-    catName = "Miscellaneous";
-    confidence = 0.5;
   }
 
-  const category = await prisma.category.findUnique({ where: { name: catName } });
-  const entry = { name: catName, id: category?.id || null, cleanMerchant: merchant, confidence };
-  categoryCache.set(merchant, entry);
-  return entry;
+  // Find or create merchant
+  let merchant = await prisma.merchant.findFirst({ where: { name: cleanName } });
+  if (!merchant) {
+    const category = catName ? await prisma.category.findUnique({ where: { name: catName } }) : null;
+    merchant = await prisma.merchant.create({
+      data: { name: cleanName, categoryId: category?.id || null },
+    });
+  }
+
+  // Create alias
+  await prisma.merchantAlias.create({ data: { rawName, merchantId: merchant.id } }).catch(() => {});
+
+  return merchant;
 }
 
 async function processMessage(data: { id: string; snippet: string; gmailId?: string; labelId?: string }) {
@@ -127,16 +107,23 @@ async function processMessage(data: { id: string; snippet: string; gmailId?: str
   }
 
   const categories = (await prisma.category.findMany()).map((c) => c.name);
-  const { name: catName, id: catId, cleanMerchant, confidence } = await categorizeMerchant(parsed.merchant, categories);
-  const merchant = cleanMerchant;
+  const merchant = await resolveMerchant(parsed.merchant, categories);
+
+  let confidence = 1.0;
+  let catName: string | null = merchant?.category?.name || null;
+  if (!catName) {
+    catName = "Miscellaneous";
+    confidence = 0.5;
+  }
 
   await prisma.transaction.create({
     data: {
       id,
-      merchant,
+      merchant: merchant?.name || parsed.merchant,
+      merchantId: merchant?.id || null,
       amount: parsed.amount,
       currency: parsed.currency,
-      categoryId: catId,
+      categoryId: merchant?.categoryId || null,
       categoryName: catName,
       bank: parsed.bank,
       transactionType: parsed.transactionType,
@@ -145,19 +132,14 @@ async function processMessage(data: { id: string; snippet: string; gmailId?: str
     },
   });
 
-  // Label in Gmail after successful DB save
   if (gmailId && labelId) {
     const gmail = gmailAuth();
     if (gmail) {
-      await gmail.users.messages.modify({
-        userId: "me",
-        id: gmailId,
-        requestBody: { addLabelIds: [labelId] },
-      }).catch(() => {});
+      await gmail.users.messages.modify({ userId: "me", id: gmailId, requestBody: { addLabelIds: [labelId] } }).catch(() => {});
     }
   }
 
-  console.log(`Processed: ${id} - ${merchant} $${parsed.amount} [${catName}]`);
+  console.log(`Processed: ${id} - ${merchant?.name || parsed.merchant} $${parsed.amount} [${catName}]`);
 }
 
 async function main() {

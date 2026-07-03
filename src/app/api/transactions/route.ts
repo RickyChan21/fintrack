@@ -49,13 +49,20 @@ export async function GET(request: Request) {
 export async function PUT(request: Request) {
   if (!prisma) return NextResponse.json({ error: "No database" }, { status: 500 });
 
-  const { id, merchant, renameAll, oldMerchant } = await request.json();
+  const { id, merchant, renameAll, oldMerchant, merchantId, categoryId } = await request.json();
+
+  if (merchantId && categoryId !== undefined) {
+    // Category update from merchant edit
+    const cat = await prisma.category.findUnique({ where: { id: categoryId } });
+    if (cat) {
+      await prisma.merchant.update({ where: { id: merchantId }, data: { categoryId } });
+      await prisma.transaction.updateMany({ where: { merchantId }, data: { categoryId, categoryName: cat.name } });
+    }
+    return NextResponse.json({ ok: true });
+  }
 
   if (renameAll && oldMerchant && merchant) {
-    await prisma.transaction.updateMany({
-      where: { merchant: oldMerchant },
-      data: { merchant },
-    });
+    await prisma.transaction.updateMany({ where: { merchant: oldMerchant }, data: { merchant } });
     return NextResponse.json({ ok: true, count: "all" });
   }
 

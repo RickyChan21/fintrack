@@ -14,12 +14,37 @@ model Category {
   name String @unique
   color String @default("#10b981")
 
+  merchants    Merchant[]
   transactions Transaction[]
+}
+
+model Merchant {
+  id         Int    @id @default(autoincrement())
+  name       String
+  categoryId Int?
+  category   Category? @relation(fields: [categoryId], references: [id])
+
+  aliases      MerchantAlias[]
+  transactions Transaction[]
+
+  @@index([name])
+}
+
+model MerchantAlias {
+  id         Int      @id @default(autoincrement())
+  merchantId Int
+  merchant   Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  rawName    String   @unique
+
+  @@map("merchant_aliases")
+  @@index([rawName])
 }
 
 model Transaction {
   id              String   @id
   merchant        String
+  merchantId      Int?
+  merchantRel     Merchant? @relation(fields: [merchantId], references: [id])
   amount          Float
   currency        String   @default("USD")
   categoryId      Int?
@@ -37,4 +62,5 @@ model Transaction {
   @@index([merchant])
   @@index([transactionDate])
   @@index([categoryId])
+  @@index([merchantId])
 }
