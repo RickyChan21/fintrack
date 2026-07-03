@@ -35,6 +35,9 @@ async function main() {
     if (existing) continue;
 
     let catName: string | null = null;
+    let cleanName = row.merchant;
+    let category: { id: number } | null = null;
+    let llmOk = false;
 
     try {
       const response = await openai.chat.completions.create({
@@ -50,41 +53,31 @@ async function main() {
         response_format: { type: "json_object" },
       });
       const result = JSON.parse(response.choices[0].message.content || "{}");
-      const cleanName = result.name || row.merchant;
+      cleanName = result.name || row.merchant;
       catName = categories.find((c) => c.toLowerCase() === result.category?.toLowerCase()) || null;
       if (!catName) {
         catName = categories.find(
           (c) => result.category?.toLowerCase().includes(c.toLowerCase()) || c.toLowerCase().includes(result.category?.toLowerCase() || "")
         ) || null;
       }
-
-      let merchant = await prisma.merchant.findFirst({ where: { name: cleanName } });
-      if (!merchant) {
-        const category = catName ? await prisma.category.findUnique({ where: { name: catName } }) : null;
-        merchant = await prisma.merchant.create({ data: { name: cleanName, categoryId: category?.id || null } });
-      }
-
-      await prisma.merchantAlias.create({ data: { rawName: row.merchant, merchantId: merchant.id } }).catch(() => {});
-      await prisma.transaction.updateMany({
-        where: { merchant: row.merchant },
-        data: { merchantId: merchant.id, merchant: cleanName, categoryId: category?.id || null, categoryName: catName },
-      });
-      created++;
-      console.log(`  ${row.merchant} → ${cleanName} [${catName}]`);
+      category = catName ? await prisma.category.findUnique({ where: { name: catName } }) : null;
+      llmOk = true;
     } catch (err) {
-      console.log(`  ${row.merchant} → skipped (${err instanceof Error ? err.message : "error"})`);
-      // Create merchant without LLM as fallback
-      let merchant = await prisma.merchant.findFirst({ where: { name: row.merchant } });
-      if (!merchant) {
-        merchant = await prisma.merchant.create({ data: { name: row.merchant, categoryId: row.categoryId } });
-      }
-      await prisma.merchantAlias.create({ data: { rawName: row.merchant, merchantId: merchant.id } }).catch(() => {});
-      await prisma.transaction.updateMany({
-        where: { merchant: row.merchant },
-        data: { merchantId: merchant.id },
-      });
-      created++;
+      console.log(`  ${row.merchant} → LLM failed, using raw name`);
     }
+
+    let merchant = await prisma.merchant.findFirst({ where: { name: cleanName } });
+    if (!merchant) {
+      merchant = await prisma.merchant.create({ data: { name: cleanName, categoryId: category?.id || llmOk ? category?.id || null : row.categoryId } });
+    }
+
+    await prisma.merchantAlias.create({ data: { rawName: row.merchant, merchantId: merchant.id } }).catch(() => {});
+    await prisma.transaction.updateMany({
+      where: { merchant: row.merchant },
+      data: { merchantId: merchant.id, merchant: cleanName, categoryId: category?.id || null, categoryName: catName },
+    });
+    created++;
+    console.log(`  ${row.merchant} → ${cleanName} [${catName || "unchanged"}]`);
   }
 
   console.log(`Done. Processed ${created} unique merchants.`);
