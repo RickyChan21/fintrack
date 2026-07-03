@@ -11,6 +11,14 @@ try {
   }
 } catch {}
 
+// If DATABASE_URL still not set, construct from individual vars (supervised container)
+if (!process.env.DATABASE_URL) {
+  const user = process.env.POSTGRES_USER || "fintrack";
+  const pass = process.env.POSTGRES_PASSWORD || "fintrack";
+  const db = process.env.POSTGRES_DB || "fintrack";
+  process.env.DATABASE_URL = `postgresql://${user}:${pass}@localhost:5432/${db}`;
+}
+
 const prisma = new PrismaClient();
 const openai = new OpenAI({
   baseURL: process.env.LLM_BASE_URL || "http://localhost:11434/v1",
