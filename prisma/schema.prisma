@@ -50,6 +50,18 @@ model Position {
   @@map("positions")
 }
 
+model IngesterConfig {
+  id           Int        @id @default(autoincrement())
+  name         String
+  searchQuery  String
+  labelDone    String     @default("fintrack_processed")
+  pollInterval Int        @default(300)
+  enabled      Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+
+  @@map("ingester_configs")
+}
+
 model Category {
   id          Int            @id @default(autoincrement())
   name        String         @unique
