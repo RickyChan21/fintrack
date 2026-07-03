@@ -41,6 +41,7 @@ fi
 
 redis-server --daemonize yes
 echo "Redis ready"
+redis-cli SET fintrack:ingester:paused "true" 2>/dev/null || true
 
 export REDIS_HOST="${REDIS_HOST:-localhost}"
 export REDIS_PORT="${REDIS_PORT:-6379}"
