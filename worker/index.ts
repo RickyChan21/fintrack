@@ -20,7 +20,7 @@ function gmailAuth() {
   return google.gmail({ version: "v1", auth: o });
 }
 
-function parseBACEmail(text: string) {
+function parseEmail(text: string) {
   const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
   const HEADERS = new Set(["Comercio", "Monto", "Fecha y hora", "Tipo de compra", "Estado"]);
   const vals: string[] = [];
@@ -38,7 +38,7 @@ function parseBACEmail(text: string) {
   const amount = amountRaw ? parseFloat(amountRaw.replace(/[^0-9.]/g, "")) : null;
   const currency = amountRaw?.includes("USD") ? "USD" : amountRaw?.includes("PAB") ? "PAB" : "USD";
   const date = dateRaw ? new Date(dateRaw.replace(/-/g, "T").replace(/\//g, "-").replace("TT", "T")) : null;
-  const bank = "BAC";
+  const bank = null;
   const transactionType = cardMatch ? cardMatch[1] : txType;
   return { merchant, amount, currency, date, bank, transactionType, status };
 }
@@ -100,7 +100,7 @@ async function processMessage(data: { id: string; snippet: string; gmailId?: str
   const existing = await prisma.transaction.findUnique({ where: { id } });
   if (existing) return;
 
-  const parsed = parseBACEmail(snippet);
+  const parsed = parseEmail(snippet);
   if (!parsed.merchant || !parsed.amount) {
     console.log(`Could not parse: ${id}`);
     return;

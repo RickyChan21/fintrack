@@ -1,6 +1,6 @@
 # Fintrack
 
-Automated financial tracking that extracts transaction data from BAC bank notification emails and provides a web dashboard.
+Automated financial tracking that extracts transaction data from bank notification emails and provides a web dashboard.
 
 ## Architecture
 
@@ -16,7 +16,7 @@ Automated financial tracking that extracts transaction data from BAC bank notifi
 |---------|-------------|
 | Dashboard | Next.js web UI at port 3000 |
 | Worker | BullMQ queue processor, parses emails and calls LLM |
-| Ingester | Polls Gmail API for new BAC notifications |
+| Ingester | Polls Gmail API for new transaction notifications |
 
 ## Run Locally
 
@@ -41,16 +41,19 @@ npm run ingester   # Gmail poller
 Bundles Postgres, Redis, and all services in one container. Map `/data` for persistence.
 
 ```
-ghcr.io/rickychan21/fintrack:0.8.1
+ghcr.io/rickychan21/fintrack:0.9.0
 ```
 
 ## .env
 
 ```
+DATABASE_URL=postgresql://fintrack:fintrack@localhost:5432/fintrack
+REDIS_HOST=localhost
+REDIS_PORT=16379
 GMAIL_CLIENT_ID=
 GMAIL_CLIENT_SECRET=
 GMAIL_REFRESH_TOKEN=
-GMAIL_SEARCH_QUERY=from:notificacion_pa@pa.bac.net subject:Transaccion -label:fintrack_processed
+GMAIL_SEARCH_QUERY=
 GMAIL_LABEL_DONE=fintrack_processed
 LLM_BASE_URL=https://api.deepseek.com/v1
 OPENAI_API_KEY=sk-your-key
@@ -59,10 +62,11 @@ LLM_MODEL=deepseek-chat
 
 ## How it works
 
-1. **Ingester** polls Gmail for BAC transaction emails
-2. Parses the email body with regex (Comercio, Monto, Fecha, etc.)
+1. **Ingester** polls Gmail for transaction emails matching the search query
+2. Parses the email body with regex (merchant, amount, date, etc.)
 3. Pushes to BullMQ queue with dedup by email ID
-4. **Worker** picks up the job, normalizes merchant name via local table
-5. Asks DeepSeek to categorize the merchant only if not cached
-6. Saves to Postgres and labels email as processed
-7. **Dashboard** reads from Postgres via API routes
+4. **Worker** looks up raw merchant name in MerchantAlias table
+5. If found — uses cached name + category (no LLM call)
+6. If new — calls DeepSeek to categorize, persists to Merchant + MerchantAlias tables
+7. Saves to Postgres and labels email as processed
+8. **Dashboard** reads from Postgres via API routes

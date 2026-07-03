@@ -2,19 +2,19 @@
 
 ## Worker
 
-The worker processes BAC bank notification emails from a BullMQ queue.
+The worker processes bank notification emails from a BullMQ queue.
 
 **Pipeline:**
 1. Parse email text with regex (merchant, amount, date, card type)
-2. Normalize merchant name via local lookup table (Amazon → Amazon, etc.)
-3. Check in-memory cache for existing merchant→category mapping
-4. If not cached, call DeepSeek to categorize (single prompt, JSON response)
-5. Save transaction to Postgres
+2. Look up raw merchant name in MerchantAlias table
+3. If found → use cached name + category (no LLM call)
+4. If not found → call DeepSeek to categorize → persist to Merchant + MerchantAlias tables
+5. Save transaction to Postgres with merchantId FK
 6. Apply Gmail label to mark as processed
 
 ## Ingester
 
-Polls the Gmail API via OAuth 2.0, finds unlabeled BAC transaction emails, parses them with mailparser, and pushes structured jobs to BullMQ.
+Polls the Gmail API via OAuth 2.0, finds unlabeled transaction emails, parses them with mailparser, and pushes structured jobs to BullMQ.
 
 ## Dashboard
 
