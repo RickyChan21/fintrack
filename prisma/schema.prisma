@@ -9,12 +9,52 @@ datasource db {
   extensions = [vector]
 }
 
-model Category {
-  id   Int    @id @default(autoincrement())
-  name String @unique
-  color String @default("#10b981")
+model Account {
+  id          Int      @id @default(autoincrement())
+  name        String
+  type        String
+  subtype     String?
+  currency    String   @default("USD")
+  institution String?
+  color       String   @default("#3b82f6")
+  network     String?  // "visa", "mastercard", "amex", etc.
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
 
-  merchants    Merchant[]
+  transactions Transaction[]
+  balances     Balance[]
+  positions    Position[]
+
+  @@map("accounts")
+}
+
+model Balance {
+  id        Int      @id @default(autoincrement())
+  accountId Int
+  account   Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  amount    Float
+  date      DateTime @default(now())
+
+  @@index([accountId, date])
+  @@map("balances")
+}
+
+model Position {
+  id        Int     @id @default(autoincrement())
+  accountId Int
+  account   Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  ticker    String
+  shares    Float
+
+  @@unique([accountId, ticker])
+  @@map("positions")
+}
+
+model Category {
+  id          Int            @id @default(autoincrement())
+  name        String         @unique
+  color       String         @default("#10b981")
+  merchants   Merchant[]
   transactions Transaction[]
 }
 
@@ -40,22 +80,36 @@ model MerchantAlias {
   @@index([rawName])
 }
 
+model Income {
+  id         Int      @id @default(autoincrement())
+  amount     Float
+  source     String
+  category   String
+  incomeDate DateTime @map("income_date")
+  notes      String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("income")
+}
+
 model Transaction {
-  id              String   @id
+  id              String    @id
   merchant        String
   merchantId      Int?
   merchantRel     Merchant? @relation(fields: [merchantId], references: [id])
   amount          Float
-  currency        String   @default("USD")
+  currency        String    @default("USD")
   categoryId      Int?
   category        Category? @relation(fields: [categoryId], references: [id])
-  categoryName    String?  @map("category")
+  categoryName    String?   @map("category")
   bank            String?
-  transactionType String?  @map("transaction_type")
+  transactionType String?   @map("transaction_type")
   transactionDate DateTime? @map("transaction_date")
-  processedAt     DateTime @default(now()) @map("processed_at")
-  rawSnippet      String?  @map("raw_snippet")
-  confidenceScore Float?   @map("confidence_score")
+  accountId       Int?
+  account         Account?  @relation(fields: [accountId], references: [id])
+  processedAt     DateTime  @default(now()) @map("processed_at")
+  rawSnippet      String?   @map("raw_snippet")
+  confidenceScore Float?    @map("confidence_score")
   embedding       Unsupported("vector(384)")?
 
   @@map("transactions")
@@ -63,4 +117,5 @@ model Transaction {
   @@index([transactionDate])
   @@index([categoryId])
   @@index([merchantId])
+  @@index([accountId])
 }
