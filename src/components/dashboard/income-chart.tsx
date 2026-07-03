@@ -1,0 +1,67 @@
+"use client";
+
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useTheme } from "next-themes";
+import { useEffect, useState } from "react";
+
+interface IncomeChartProps {
+  data: { name: string; value: number }[];
+  totalIncome: number;
+}
+
+const COLORS = ["#84cc16", "#6366f1", "#06b6d4", "#f59e0b", "#ec4899", "#6b7280"];
+
+export function IncomeChart({ data, totalIncome }: IncomeChartProps) {
+  const { theme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const isDark = mounted && (theme === "dark" || (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches));
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Income by Source</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-start gap-6">
+          <div className="w-48 h-48 flex-shrink-0">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie data={data} cx="50%" cy="50%" innerRadius={60} outerRadius={80} dataKey="value" strokeWidth={0}>
+                  {data.map((entry, i) => (
+                    <Cell key={entry.name} fill={COLORS[i % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  formatter={(value) => value != null ? `$${Number(value).toFixed(2)}` : ""}
+                  contentStyle={{
+                    background: isDark ? "#1a1a1a" : "#fff",
+                    border: isDark ? "1px solid #333" : "1px solid #e5e7eb",
+                    borderRadius: "var(--radius)",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+                    fontSize: "13px",
+                    color: isDark ? "#fff" : "#111",
+                  }}
+                  labelStyle={{ fontWeight: 600, marginBottom: 4 }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="flex-1 min-w-0 space-y-1.5 text-sm">
+            {data.map((d, i) => (
+              <div key={d.name} className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: COLORS[i % COLORS.length] }} />
+                <span className="text-muted-foreground flex-1 truncate">{d.name}</span>
+                <span className="font-medium">${d.value.toFixed(2)}</span>
+                <span className="text-muted-foreground text-xs w-10 text-right">
+                  {totalIncome > 0 ? ((d.value / totalIncome) * 100).toFixed(1) : "0"}%
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}

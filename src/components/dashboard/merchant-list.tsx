@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface MerchantListProps {
-  merchants: { name: string; amount: number }[];
+  merchants: { name: string; amount: number; color?: string }[];
 }
 
 export function MerchantList({ merchants }: MerchantListProps) {
@@ -22,8 +22,8 @@ export function MerchantList({ merchants }: MerchantListProps) {
             </div>
             <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
               <div
-                className="h-full bg-primary rounded-full"
-                style={{ width: `${(m.amount / maxAmount) * 100}%` }}
+                className="h-full rounded-full transition-all"
+                style={{ width: `${(m.amount / maxAmount) * 100}%`, background: m.color || "hsl(var(--primary))" }}
               />
             </div>
             <p className="text-xs text-muted-foreground mt-0.5">
