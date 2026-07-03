@@ -1,5 +1,15 @@
 import { PrismaClient } from "@prisma/client";
 import OpenAI from "openai";
+import { readFileSync } from "fs";
+
+// Load env from /data/.env if running in container
+try {
+  const env = readFileSync("/data/.env", "utf-8");
+  for (const line of env.split("\n")) {
+    const m = line.match(/^([^=]+)=(.*)$/);
+    if (m) process.env[m[1].trim()] = m[2].trim().replace(/^"(.*)"$/, "$1");
+  }
+} catch {}
 
 const prisma = new PrismaClient();
 const openai = new OpenAI({
